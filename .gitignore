@@ -1,0 +1,39 @@
+# Large Model Files & Checkpoints
+medical_nllb_output/
+medical_adapter_final/
+medical_adapter_final_v2/
+
+# Large Data Files
+*.csv
+medical_training*.csv
+EMEA.de-en.*
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# Virtual Environments
+venv/
+env/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Outputs & Temporary
+outputs/
+*.docx
+*_Translated_*.docx
+*.json
+*.log
+*.pdf
+
+# Backup Files
+*.bak
+*.tmp

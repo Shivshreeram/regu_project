@@ -1,0 +1,124 @@
+project:
+  name: "Pharmaceutical Regulatory Document Translator"
+  language_pair: "en-de"
+  domain: "pharma_regulatory"
+
+data:
+  # Source files
+  raw_sources:
+    - "EMEA.de-en.en"
+    - "EMEA.de-en.de"
+  
+  regulatory_csvs:
+    - "100000073345_routes_of_admin.csv"
+    - "100000110633_units_of_mesu.csv"
+    - "200000000004_pharma_dose_form.csv"
+    - "200000000007_combined_terms.csv"
+    - "200000000014_units_of_presen.csv"
+  
+  # Processing
+  output_training: "medical_training_complete.csv"
+  output_cleaned: "medical_training_final_cleaned.csv"
+  glossary_output: "pharma_glossary.json"
+  
+  # Cleaning thresholds
+  min_length: 3
+  min_char_length: 5
+  max_length: 512
+  remove_duplicates: true
+  remove_near_duplicates: true
+
+model:
+  base_model: "facebook/nllb-200-distilled-600M"
+  src_lang: "eng_Latn"
+  tgt_lang: "deu_Latn"
+
+training:
+  output_dir: "./medical_nllb_output_v2"
+  num_epochs: 5
+  per_device_train_batch_size: 16
+  per_device_eval_batch_size: 16
+  gradient_accumulation_steps: 2
+  learning_rate: 5e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_seq_length: 128
+  dtype: "bfloat16"
+  
+  # LoRA configuration
+  lora:
+    r: 64
+    lora_alpha: 32
+    lora_dropout: 0.1
+    task_type: "SEQ_2_SEQ_LM"
+    # Target more layers for better domain adaptation
+    target_modules:
+      - "q_proj"
+      - "v_proj"
+      - "k_proj"
+      - "out_proj"
+    # Optionally add FFN layers
+    bias: "none"
+  
+  # Evaluation
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  save_total_limit: 3
+  logging_steps: 50
+  report_to: "none"
+  
+  # Callbacks
+  early_stopping_patience: 2
+  early_stopping_threshold: 0.001
+
+validation:
+  # Minimum BLEU score to accept translation
+  bleu_threshold: 25
+  # Minimum glossary match rate
+  glossary_match_threshold: 0.85
+  # Test set percentage
+  test_size: 0.15
+  # Validation set percentage
+  val_size: 0.10
+  # Seed for reproducibility
+  seed: 42
+
+evaluation:
+  metrics:
+    - "bleu"
+    - "meteor"
+    - "chrf"
+    - "ter"
+  # Sample size for manual evaluation
+  manual_eval_sample: 200
+  # Check consistency of terminology within documents
+  check_term_consistency: true
+
+document_processing:
+  # How to handle document structure
+  preserve_formatting: true
+  preserve_tables: true
+  preserve_sections: true
+  
+  # Max retries for translation
+  max_retries: 3
+  retry_fallback: "original"  # or "glossary_only"
+  
+  # Post-processing
+  apply_glossary_validation: true
+  fix_capitalization: true
+  enforce_consistency: true
+
+output:
+  translated_doc_dir: "./translated_documents"
+  quality_report: "./quality_reports"
+  log_level: "INFO"
+
+paths:
+  base: "./"
+  data: "./data"
+  models: "./models"
+  outputs: "./outputs"
+  checkpoints: "./medical_nllb_output_v2"
+  adapter_final: "./medical_adapter_final_v2"
+  glossary: "./pharma_glossary.json"

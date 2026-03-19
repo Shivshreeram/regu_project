@@ -1,0 +1,277 @@
+"""
+Improved training script with enhanced LoRA configuration and evaluation metrics.
+Follows configuration from config.yaml for reproducibility.
+"""
+
+import torch
+import yaml
+import time
+import os
+from datetime import timedelta
+from datasets import load_dataset
+from transformers import (
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    Seq2SeqTrainingArguments,
+    Seq2SeqTrainer,
+    DataCollatorForSeq2Seq,
+    TrainerCallback,
+    EarlyStoppingCallback
+)
+from peft import LoraConfig, get_peft_model, TaskType
+import json
+
+def load_config(config_path: str = "config.yaml") -> dict:
+    """Load configuration from YAML."""
+    with open(config_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+class TimerCallback(TrainerCallback):
+    """Track training time."""
+    def on_train_begin(self, args, state, control, **kwargs):
+        self.start_time = time.time()
+        print(f"\n⏱️ Training started at: {time.strftime('%H:%M:%S')}")
+
+    def on_train_end(self, args, state, control, **kwargs):
+        total_time = time.time() - self.start_time
+        print(f"\n⏱️ TOTAL TRAINING TIME: {str(timedelta(seconds=int(total_time)))}")
+
+class ImprovedPharmaTrainer:
+    def __init__(self, config_path: str = "config.yaml"):
+        self.config = load_config(config_path)
+        self.model = None
+        self.tokenizer = None
+        self.trainer = None
+    
+    def setup_model_and_tokenizer(self):
+        """Initialize base model and tokenizer."""
+        print("🧠 Initializing model and tokenizer...")
+        
+        model_id = self.config["model"]["base_model"]
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            src_lang=self.config["model"]["src_lang"],
+            tgt_lang=self.config["model"]["tgt_lang"]
+        )
+        
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_id,
+            torch_dtype=torch.bfloat16,
+            device_map="auto"
+        )
+        
+        print(f"✅ Model: {model_id}")
+        return self.model, self.tokenizer
+    
+    def setup_lora(self):
+        """Configure LoRA with enhanced settings."""
+        print("🔧 Configuring LoRA adapters...")
+        
+        lora_config_dict = self.config["training"]["lora"]
+        
+        peft_config = LoraConfig(
+            task_type=TaskType.SEQ_2_SEQ_LM,
+            r=lora_config_dict["r"],
+            lora_alpha=lora_config_dict["lora_alpha"],
+            lora_dropout=lora_config_dict["lora_dropout"],
+            target_modules=lora_config_dict["target_modules"],
+            bias=lora_config_dict["bias"]
+        )
+        
+        self.model = get_peft_model(self.model, peft_config)
+        self.model.print_trainable_parameters()
+        
+        print(f"✅ LoRA configured:")
+        print(f"   Rank (r): {lora_config_dict['r']}")
+        print(f"   Alpha: {lora_config_dict['lora_alpha']}")
+        print(f"   Dropout: {lora_config_dict['lora_dropout']}")
+        print(f"   Target modules: {lora_config_dict['target_modules']}")
+        
+        return self.model
+    
+    def load_and_preprocess_data(self):
+        """Load and preprocess training data."""
+        print("\n📦 Loading dataset...")
+        
+        csv_path = self.config["data"]["output_cleaned"]
+        
+        if not os.path.exists(csv_path):
+            print(f"⚠️  File not found: {csv_path}")
+            print(f"   Run prepare_data.py first")
+            return None, None
+        
+        dataset = load_dataset("csv", data_files=csv_path)["train"]
+        
+        # Split into train/test/val
+        train_test = dataset.train_test_split(
+            test_size=self.config["validation"]["test_size"],
+            seed=self.config["validation"]["seed"]
+        )
+        
+        train_val = train_test["train"].train_test_split(
+            test_size=self.config["validation"]["val_size"],
+            seed=self.config["validation"]["seed"]
+        )
+        
+        dataset_dict = {
+            "train": train_val["train"],
+            "val": train_val["test"],
+            "test": train_test["test"]
+        }
+        
+        print(f"✅ Dataset sizes:")
+        print(f"   Train: {len(dataset_dict['train'])}")
+        print(f"   Val: {len(dataset_dict['val'])}")
+        print(f"   Test: {len(dataset_dict['test'])}")
+        
+        # Tokenization
+        print("🛠️ Tokenizing data...")
+        
+        def preprocess_function(examples):
+            max_input_length = self.config["training"]["max_seq_length"]
+            
+            model_inputs = self.tokenizer(
+                examples["en"],
+                max_length=max_input_length,
+                truncation=True,
+                padding="max_length"
+            )
+            
+            labels = self.tokenizer(
+                text_target=examples["de"],
+                max_length=max_input_length,
+                truncation=True,
+                padding="max_length"
+            )
+            
+            model_inputs["labels"] = labels["input_ids"]
+            return model_inputs
+        
+        tokenized = {}
+        for split, data in dataset_dict.items():
+            tokenized[split] = data.map(
+                preprocess_function,
+                batched=True,
+                remove_columns=data.column_names,
+                desc=f"Tokenizing {split}"
+            )
+        
+        print("✅ Tokenization complete")
+        return tokenized, dataset_dict
+    
+    def setup_training_args(self):
+        """Configure training arguments from config."""
+        print("\n⚙️  Setting up training arguments...")
+        
+        training_config = self.config["training"]
+        
+        args = Seq2SeqTrainingArguments(
+            output_dir=training_config["output_dir"],
+            num_train_epochs=training_config["num_epochs"],
+            per_device_train_batch_size=training_config["per_device_train_batch_size"],
+            per_device_eval_batch_size=training_config["per_device_eval_batch_size"],
+            gradient_accumulation_steps=training_config["gradient_accumulation_steps"],
+            learning_rate=training_config["learning_rate"],
+            warmup_ratio=training_config.get("warmup_ratio", 0.1),
+            weight_decay=training_config.get("weight_decay", 0.01),
+            bf16=True,
+            logging_steps=training_config["logging_steps"],
+            eval_strategy=training_config["eval_strategy"],
+            save_strategy=training_config["save_strategy"],
+            save_total_limit=training_config["save_total_limit"],
+            predict_with_generate=True,
+            report_to="none",
+            seed=self.config["validation"]["seed"],
+            optim="8bit_adam"  # Memory efficient
+        )
+        
+        print("✅ Training arguments configured")
+        return args
+    
+    def train(self):
+        """Execute training pipeline."""
+        print("\n" + "="*70)
+        print("🚀 PHARMACEUTICAL TRANSLATOR - TRAINING PIPELINE")
+        print("="*70)
+        
+        # Setup
+        self.setup_model_and_tokenizer()
+        self.setup_lora()
+        
+        # Data
+        tokenized_data, raw_dataset = self.load_and_preprocess_data()
+        if tokenized_data is None:
+            return False
+        
+        # Training config
+        training_args = self.setup_training_args()
+        
+        # Trainer
+        print("\n🏋️ Initializing trainer...")
+        
+        self.trainer = Seq2SeqTrainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=tokenized_data["train"],
+            eval_dataset=tokenized_data["val"],
+            tokenizer=self.tokenizer,
+            data_collator=DataCollatorForSeq2Seq(self.tokenizer, model=self.model),
+            callbacks=[
+                TimerCallback(),
+                EarlyStoppingCallback(
+                    early_stopping_patience=self.config["training"]["early_stopping_patience"],
+                    early_stopping_threshold=self.config["training"]["early_stopping_threshold"]
+                )
+            ]
+        )
+        
+        # Train
+        print("🏋️ Starting training...\n")
+        try:
+            train_result = self.trainer.train()
+            
+            # Evaluate on test set
+            print("\n📊 Evaluating on test set...")
+            test_results = self.trainer.evaluate(
+                eval_dataset=tokenized_data["test"],
+                metric_key_prefix="test"
+            )
+            
+            # Save final model
+            adapter_path = self.config["paths"]["adapter_final"]
+            print(f"\n💾 Saving model to {adapter_path}...")
+            self.model.save_pretrained(adapter_path)
+            self.tokenizer.save_pretrained(adapter_path)
+            
+            # Save results
+            results = {
+                "training": train_result.to_dict() if hasattr(train_result, 'to_dict') else str(train_result),
+                "test_evaluation": test_results,
+                "model_config": self.config
+            }
+            
+            results_path = os.path.join(self.config["training"]["output_dir"], "training_results.json")
+            with open(results_path, "w", encoding="utf-8") as f:
+                json.dump(results, f, indent=2, default=str)
+            
+            print("\n" + "="*70)
+            print("✅ TRAINING COMPLETE")
+            print("="*70)
+            print(f"Model saved: {adapter_path}")
+            print(f"Results saved: {results_path}")
+            print("="*70 + "\n")
+            
+            return True
+        
+        except Exception as e:
+            print(f"\n❌ Training failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+
+if __name__ == "__main__":
+    trainer = ImprovedPharmaTrainer(config_path="config.yaml")
+    success = trainer.train()
+    exit(0 if success else 1)
