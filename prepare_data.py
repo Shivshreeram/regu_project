@@ -177,19 +177,19 @@ class DataPreparationPipeline:
         # Save raw combined (before splitting)
         output_combined = self.config["data"]["output_training"]
         df_combined.to_csv(output_combined, index=False, encoding="utf-8")
-        print(f"\n💾 Combined data saved: {output_combined}")
+        print(f"\n[SAVE] Combined data saved: {output_combined}")
         
         # Save cleaned final
         output_cleaned = self.config["data"]["output_cleaned"]
         df_cleaned.to_csv(output_cleaned, index=False, encoding="utf-8")
-        print(f"💾 Cleaned data saved: {output_cleaned}")
+        print(f"[SAVE] Cleaned data saved: {output_cleaned}")
         
         # Print statistics
         print("\n" + "="*60)
-        print("📈 FINAL STATISTICS")
+        print("[STATS] FINAL STATISTICS")
         print("="*60)
         print(f"Training pairs: {len(df_cleaned)}")
-        print(f"Languages: English → German")
+        print(f"Languages: English -> German")
         print(f"Domain: Pharmaceutical Regulatory")
         print(f"Glossary terms included: ~{len(self.glossary)}")
         print("="*60 + "\n")
