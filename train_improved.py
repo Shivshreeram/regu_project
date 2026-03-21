@@ -9,7 +9,7 @@ import yaml
 import time
 import os
 from datetime import timedelta
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
@@ -125,16 +125,36 @@ class ImprovedPharmaTrainer:
         return self.model
     
     def load_and_preprocess_data(self):
-        """Load and preprocess training data."""
+        """Load and preprocess training data with caching."""
         print("\n[LOAD] Loading dataset...")
         
         csv_path = self.config["data"]["output_cleaned"]
+        cache_dir = "./tokenized_cache"
         
         if not os.path.exists(csv_path):
             print(f"[WARNING] File not found: {csv_path}")
             print(f"   Run prepare_data.py first")
             return None, None
         
+        # Check if tokenized data is cached
+        train_cache = os.path.join(cache_dir, "train")
+        val_cache = os.path.join(cache_dir, "val")
+        test_cache = os.path.join(cache_dir, "test")
+        
+        if os.path.exists(train_cache) and os.path.exists(val_cache) and os.path.exists(test_cache):
+            print("[CACHE] Loading tokenized data from cache...")
+            tokenized = {
+                "train": load_from_disk(train_cache),
+                "val": load_from_disk(val_cache),
+                "test": load_from_disk(test_cache)
+            }
+            print(f"[OK] Loaded from cache:")
+            print(f"   Train: {len(tokenized['train'])}")
+            print(f"   Val: {len(tokenized['val'])}")
+            print(f"   Test: {len(tokenized['test'])}")
+            return tokenized, None
+        
+        # Load and preprocess if cache doesn't exist
         dataset = load_dataset("csv", data_files=csv_path)["train"]
         
         # Split into train/test/val
@@ -191,7 +211,13 @@ class ImprovedPharmaTrainer:
                 desc=f"Tokenizing {split}"
             )
         
-        print("[OK] Tokenization complete")
+        # Save to cache for next time
+        print("[SAVE] Caching tokenized data...")
+        os.makedirs(cache_dir, exist_ok=True)
+        for split, token_data in tokenized.items():
+            token_data.save_to_disk(os.path.join(cache_dir, split))
+        
+        print("[OK] Tokenization complete and cached")
         return tokenized, dataset_dict
     
     def setup_training_args(self):
@@ -222,7 +248,11 @@ class ImprovedPharmaTrainer:
             gradient_checkpointing=training_config.get("gradient_checkpointing", True),
             max_grad_norm=training_config.get("max_grad_norm", 1.0),
             fp16=False,  # Using bfloat16 instead
-            remove_unused_columns=False
+            remove_unused_columns=False,
+            # Early stopping
+            metric_for_best_model="eval_loss",
+            load_best_model_at_end=True,
+            greater_is_better=False
         )
         
         print("[OK] Training arguments configured")
