@@ -120,5 +120,5 @@ paths:
   models: "./models"
   outputs: "./outputs"
   checkpoints: "./medical_nllb_output_v2"
-  adapter_final: "./medical_adapter_final_v2"
+  adapter_final: "./medical_adapter_final"
   glossary: "./pharma_glossary.json"

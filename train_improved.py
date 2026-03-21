@@ -173,7 +173,7 @@ class ImprovedPharmaTrainer:
             per_device_eval_batch_size=training_config["per_device_eval_batch_size"],
             gradient_accumulation_steps=training_config["gradient_accumulation_steps"],
             learning_rate=training_config["learning_rate"],
-            warmup_ratio=training_config.get("warmup_ratio", 0.1),
+            warmup_steps=int(1000 * training_config.get("warmup_ratio", 0.1)),  # Convert ratio to steps
             weight_decay=training_config.get("weight_decay", 0.01),
             bf16=True,
             logging_steps=training_config["logging_steps"],
@@ -183,7 +183,7 @@ class ImprovedPharmaTrainer:
             predict_with_generate=True,
             report_to="none",
             seed=self.config["validation"]["seed"],
-            optim="8bit_adam"  # Memory efficient
+            optim="paged_adamw_8bit"  # Memory efficient 8-bit optimizer
         )
         
         print("✅ Training arguments configured")
