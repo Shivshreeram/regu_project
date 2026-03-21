@@ -55,7 +55,7 @@ class DataPreparationPipeline:
                 })
         
         df_glossary = pd.DataFrame(glossary_pairs)
-        print(f"✅ Converted {len(df_glossary)} glossary entries to training pairs")
+        print(f"[OK] Converted {len(df_glossary)} glossary entries to training pairs")
         return df_glossary
     
     def load_emea_bilingual(self) -> pd.DataFrame:
@@ -66,7 +66,7 @@ class DataPreparationPipeline:
         de_file = self.config["data"]["raw_sources"][1]
         
         if not (os.path.exists(en_file) and os.path.exists(de_file)):
-            print(f"⚠️  Could not find EMEA files")
+            print(f"[WARNING] Could not find EMEA files")
             return pd.DataFrame()
         
         try:
@@ -82,11 +82,11 @@ class DataPreparationPipeline:
                 "source": "emea"
             })
             
-            print(f"✅ Loaded {len(df_emea)} EMEA pairs")
+            print(f"[OK] Loaded {len(df_emea)} EMEA pairs")
             return df_emea
         
         except Exception as e:
-            print(f"❌ Error loading EMEA: {e}")
+            print(f"[ERROR] Error loading EMEA: {e}")
             return pd.DataFrame()
     
     def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -130,7 +130,7 @@ class DataPreparationPipeline:
         removed = initial_count - len(df)
         print(f"📊 Original: {initial_count} pairs")
         print(f"🗑️  Removed: {removed} pairs")
-        print(f"✅ Final: {len(df)} pairs")
+        print(f"[OK] Final: {len(df)} pairs")
         
         return df
     
@@ -145,10 +145,10 @@ class DataPreparationPipeline:
         df_emea = self.load_emea_bilingual()
         
         if df_glossary.empty:
-            print("⚠️  No glossary data, using EMEA only")
+            print("[WARNING] No glossary data, using EMEA only")
             combined = df_emea
         elif df_emea.empty:
-            print("⚠️  No EMEA data, using glossary only")
+            print("[WARNING] No EMEA data, using glossary only")
             combined = df_glossary
         else:
             # Combine both sources
@@ -162,7 +162,7 @@ class DataPreparationPipeline:
     def prepare_training_data(self) -> Tuple[str, str]:
         """Execute full data preparation pipeline."""
         print("="*60)
-        print("🚀 PHARMACEUTICAL DATA PREPARATION PIPELINE")
+        print("[START] PHARMACEUTICAL DATA PREPARATION PIPELINE")
         print("="*60)
         
         # Build glossary
@@ -200,5 +200,5 @@ class DataPreparationPipeline:
 if __name__ == "__main__":
     pipeline = DataPreparationPipeline(config_path="config.yaml")
     combined_file, cleaned_file = pipeline.prepare_training_data()
-    print("✅ Data preparation complete!")
+    print("[OK] Data preparation complete!")
     print(f"Use '{cleaned_file}' for training")

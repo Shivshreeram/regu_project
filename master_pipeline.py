@@ -24,7 +24,7 @@ class MasterPipeline:
     def print_header(self, title: str):
         """Print section header."""
         print("\n" + "="*80)
-        print(f"🚀 {title}")
+        print(f"[>] {title}")
         print("="*80 + "\n")
     
     def step_1_build_glossary(self):
@@ -40,11 +40,11 @@ class MasterPipeline:
             builder.print_statistics()
             builder.save_glossary()
             
-            self.log.append("✅ Glossary built successfully")
+            self.log.append("[OK] Glossary built successfully")
             return True
         except Exception as e:
-            print(f"❌ Glossary building failed: {e}")
-            self.log.append(f"❌ Glossary building failed: {e}")
+            print(f"[ERROR] Glossary building failed: {e}")
+            self.log.append(f"[ERROR] Glossary building failed: {e}")
             return False
     
     def step_2_prepare_data(self):
@@ -57,11 +57,11 @@ class MasterPipeline:
             pipeline = DataPreparationPipeline(config_path="config.yaml")
             combined_file, cleaned_file = pipeline.prepare_training_data()
             
-            self.log.append("✅ Data preparation complete")
+            self.log.append("[OK] Data preparation complete")
             return True
         except Exception as e:
-            print(f"❌ Data preparation failed: {e}")
-            self.log.append(f"❌ Data preparation failed: {e}")
+            print(f"[ERROR] Data preparation failed: {e}")
+            self.log.append(f"[ERROR] Data preparation failed: {e}")
             return False
     
     def step_3_train_model(self):
@@ -75,14 +75,14 @@ class MasterPipeline:
             success = trainer.train()
             
             if success:
-                self.log.append("✅ Model training complete")
+                self.log.append("[OK] Model training complete")
                 return True
             else:
-                self.log.append("❌ Model training failed")
+                self.log.append("[ERROR] Model training failed")
                 return False
         except Exception as e:
-            print(f"❌ Training failed: {e}")
-            self.log.append(f"❌ Training failed: {e}")
+            print(f"[ERROR] Training failed: {e}")
+            self.log.append(f"[ERROR] Training failed: {e}")
             return False
     
     def step_4_evaluate_model(self):
@@ -98,11 +98,11 @@ class MasterPipeline:
             evaluator.manual_quality_check(num_samples=10)
             evaluator.generate_report()
             
-            self.log.append("✅ Model evaluation complete")
+            self.log.append("[OK] Model evaluation complete")
             return True
         except Exception as e:
-            print(f"❌ Evaluation failed: {e}")
-            self.log.append(f"❌ Evaluation failed: {e}")
+            print(f"[ERROR] Evaluation failed: {e}")
+            self.log.append(f"[ERROR] Evaluation failed: {e}")
             return False
     
     def step_5_process_document(self, input_doc: str = None):
@@ -119,11 +119,11 @@ class MasterPipeline:
             processor.load_model()
             report = processor.process_document(input_doc)
             
-            self.log.append("✅ Document processing complete")
+            self.log.append("[OK] Document processing complete")
             return True
         except Exception as e:
-            print(f"❌ Document processing failed: {e}")
-            self.log.append(f"❌ Document processing failed: {e}")
+            print(f"[ERROR] Document processing failed: {e}")
+            self.log.append(f"[ERROR] Document processing failed: {e}")
             return False
     
     def run_full_pipeline(self, skip_steps: list = None, input_doc: str = None):
@@ -132,7 +132,7 @@ class MasterPipeline:
             skip_steps = []
         
         print("\n" + "="*80)
-        print("🏭 PHARMACEUTICAL REGULATORY TRANSLATOR - MASTER PIPELINE")
+        print("[MASTER] PHARMACEUTICAL REGULATORY TRANSLATOR - MASTER PIPELINE")
         print("="*80)
         print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         
@@ -148,7 +148,7 @@ class MasterPipeline:
         
         for step_num, step_name, step_func, should_run in steps:
             if not should_run:
-                print(f"\n⏭️  Skipping Step {step_num}: {step_name}")
+                print(f"\n[SKIP] Skipping Step {step_num}: {step_name}")
                 results[step_num] = "skipped"
                 continue
             
@@ -158,10 +158,10 @@ class MasterPipeline:
                 else:
                     results[step_num] = "failed"
                     if step_num in ["1", "2"]:  # Critical steps
-                        print(f"\n❌ Pipeline halted at Step {step_num}")
+                        print(f"\n[ERROR] Pipeline halted at Step {step_num}")
                         break
             except Exception as e:
-                print(f"\n❌ Error in Step {step_num}: {e}")
+                print(f"\n[ERROR] Error in Step {step_num}: {e}")
                 results[step_num] = "error"
                 if step_num in ["1", "2"]:  # Critical steps
                     break
@@ -172,16 +172,16 @@ class MasterPipeline:
     def print_summary(self, results: dict):
         """Print pipeline summary."""
         print("\n" + "="*80)
-        print("📊 PIPELINE SUMMARY")
+        print("[SUMMARY] PIPELINE RESULTS")
         print("="*80)
         
         for step, status in results.items():
             status_icon = {
-                "success": "✅",
-                "failed": "❌",
-                "error": "⚠️",
-                "skipped": "⏭️"
-            }.get(status, "❓")
+                "success": "[OK]",
+                "failed": "[FAIL]",
+                "error": "[ERROR]",
+                "skipped": "[SKIP]"
+            }.get(status, "[?]")
             
             step_names = {
                 "1": "Build Glossary",

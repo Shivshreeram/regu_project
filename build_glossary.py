@@ -28,7 +28,7 @@ class PharmaGlossaryBuilder:
         
         for csv_file in csv_files:
             if not os.path.exists(csv_file):
-                print(f"⚠️  Skipping {csv_file} - not found")
+                print(f"[WARNING] Skipping {csv_file} - not found")
                 continue
             
             try:
@@ -60,7 +60,7 @@ class PharmaGlossaryBuilder:
                         break
                 
                 if en_col is None or de_col is None:
-                    print(f"⚠️  {csv_file}: Could not find en/de columns. Columns: {df.columns.tolist()}")
+                    print(f"[WARNING] {csv_file}: Could not find en/de columns. Columns: {df.columns.tolist()}")
                     continue
                 
                 for idx, row in df.iterrows():
@@ -79,10 +79,10 @@ class PharmaGlossaryBuilder:
                         self.glossary[en_key]["category"] = category
                         self.frequency_map[en_key] += 1
                 
-                print(f"✅ {csv_file}: Loaded {len(df)} terms")
+                print(f"[OK] {csv_file}: Loaded {len(df)} terms")
             
             except Exception as e:
-                print(f"❌ Error loading {csv_file}: {e}")
+                print(f"[ERROR] Error loading {csv_file}: {e}")
     
     def add_hardcoded_regulatory_terms(self) -> None:
         """Add critical SmPC (Summary of Product Characteristics) terms."""
@@ -154,7 +154,7 @@ class PharmaGlossaryBuilder:
         for en_key, data in smpc_terms.items():
             self.glossary[en_key] = data
         
-        print(f"✅ Added {len(smpc_terms)} SmPC critical terms")
+        print(f"[OK] Added {len(smpc_terms)} SmPC critical terms")
     
     def build_glossary(self, csv_files: List[str]) -> Dict:
         """Build complete glossary from all sources."""
@@ -176,7 +176,7 @@ class PharmaGlossaryBuilder:
         with open(self.output_path, "w", encoding="utf-8") as f:
             json.dump(glossary_dict, f, ensure_ascii=False, indent=2)
         
-        print(f"✅ Glossary saved: {len(self.glossary)} terms")
+        print(f"[OK] Glossary saved: {len(self.glossary)} terms")
         return self.output_path
     
     def get_statistics(self) -> Dict:

@@ -36,19 +36,21 @@ model:
 training:
   output_dir: "./medical_nllb_output_v2"
   num_epochs: 5
-  per_device_train_batch_size: 16
-  per_device_eval_batch_size: 16
+  per_device_train_batch_size: 8
+  per_device_eval_batch_size: 8
   gradient_accumulation_steps: 2
   learning_rate: 5e-5
   warmup_ratio: 0.1
   weight_decay: 0.01
   max_seq_length: 128
   dtype: "bfloat16"
+  gradient_checkpointing: true
+  max_grad_norm: 1.0
   
-  # LoRA configuration
+  # LoRA configuration - optimized for 6GB GPU
   lora:
-    r: 64
-    lora_alpha: 32
+    r: 32
+    lora_alpha: 16
     lora_dropout: 0.1
     task_type: "SEQ_2_SEQ_LM"
     # Target more layers for better domain adaptation

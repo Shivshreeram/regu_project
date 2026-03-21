@@ -1,6 +1,7 @@
 """
 Improved training script with enhanced LoRA configuration and evaluation metrics.
 Follows configuration from config.yaml for reproducibility.
+Optimized for RTX 4060 GPU execution.
 """
 
 import torch
@@ -20,6 +21,39 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model, TaskType
 import json
+
+def check_gpu():
+    """Verify CUDA/GPU availability and log GPU info."""
+    if not torch.cuda.is_available():
+        print("[ERROR] CUDA is not available. Please ensure PyTorch with CUDA support is installed.")
+        raise RuntimeError("CUDA not available")
+    
+    cuda_version = torch.version.cuda
+    cudnn_version = torch.backends.cudnn.version()
+    device_count = torch.cuda.device_count()
+    
+    print("\n" + "="*70)
+    print("[GPU] CUDA/GPU Configuration")
+    print("="*70)
+    print(f"CUDA Available: True")
+    print(f"CUDA Version: {cuda_version}")
+    print(f"cuDNN Version: {cudnn_version}")
+    print(f"Number of GPUs: {device_count}")
+    
+    for i in range(device_count):
+        props = torch.cuda.get_device_properties(i)
+        print(f"\nGPU {i}: {props.name}")
+        print(f"  Memory: {props.total_memory / 1e9:.2f} GB")
+        print(f"  Compute Capability: {props.major}.{props.minor}")
+    
+    current_device = torch.cuda.current_device()
+    print(f"\nDefault Device: GPU {current_device}")
+    
+    allocated = torch.cuda.memory_allocated() / 1e9
+    reserved = torch.cuda.memory_reserved() / 1e9
+    print(f"Memory Allocated: {allocated:.2f} GB")
+    print(f"Memory Reserved: {reserved:.2f} GB")
+    print("="*70 + "\n")
 
 def load_config(config_path: str = "config.yaml") -> dict:
     """Load configuration from YAML."""
@@ -61,7 +95,7 @@ class ImprovedPharmaTrainer:
             device_map="auto"
         )
         
-        print(f"✅ Model: {model_id}")
+        print(f"[OK] Model: {model_id}")
         return self.model, self.tokenizer
     
     def setup_lora(self):
@@ -82,7 +116,7 @@ class ImprovedPharmaTrainer:
         self.model = get_peft_model(self.model, peft_config)
         self.model.print_trainable_parameters()
         
-        print(f"✅ LoRA configured:")
+        print(f"[OK] LoRA configured:")
         print(f"   Rank (r): {lora_config_dict['r']}")
         print(f"   Alpha: {lora_config_dict['lora_alpha']}")
         print(f"   Dropout: {lora_config_dict['lora_dropout']}")
@@ -97,7 +131,7 @@ class ImprovedPharmaTrainer:
         csv_path = self.config["data"]["output_cleaned"]
         
         if not os.path.exists(csv_path):
-            print(f"⚠️  File not found: {csv_path}")
+            print(f"[WARNING] File not found: {csv_path}")
             print(f"   Run prepare_data.py first")
             return None, None
         
@@ -120,7 +154,7 @@ class ImprovedPharmaTrainer:
             "test": train_test["test"]
         }
         
-        print(f"✅ Dataset sizes:")
+        print(f"[OK] Dataset sizes:")
         print(f"   Train: {len(dataset_dict['train'])}")
         print(f"   Val: {len(dataset_dict['val'])}")
         print(f"   Test: {len(dataset_dict['test'])}")
@@ -157,12 +191,12 @@ class ImprovedPharmaTrainer:
                 desc=f"Tokenizing {split}"
             )
         
-        print("✅ Tokenization complete")
+        print("[OK] Tokenization complete")
         return tokenized, dataset_dict
     
     def setup_training_args(self):
-        """Configure training arguments from config."""
-        print("\n⚙️  Setting up training arguments...")
+        """Configure training arguments from config - GPU optimized."""
+        print("\n[CONFIG] Setting up training arguments...")
         
         training_config = self.config["training"]
         
@@ -173,7 +207,7 @@ class ImprovedPharmaTrainer:
             per_device_eval_batch_size=training_config["per_device_eval_batch_size"],
             gradient_accumulation_steps=training_config["gradient_accumulation_steps"],
             learning_rate=training_config["learning_rate"],
-            warmup_steps=int(1000 * training_config.get("warmup_ratio", 0.1)),  # Convert ratio to steps
+            warmup_steps=int(1000 * training_config.get("warmup_ratio", 0.1)),
             weight_decay=training_config.get("weight_decay", 0.01),
             bf16=True,
             logging_steps=training_config["logging_steps"],
@@ -183,21 +217,34 @@ class ImprovedPharmaTrainer:
             predict_with_generate=True,
             report_to="none",
             seed=self.config["validation"]["seed"],
-            optim="paged_adamw_8bit"  # Memory efficient 8-bit optimizer
+            optim="paged_adamw_8bit",
+            # GPU optimizations
+            gradient_checkpointing=training_config.get("gradient_checkpointing", True),
+            max_grad_norm=training_config.get("max_grad_norm", 1.0),
+            fp16=False,  # Using bfloat16 instead
+            remove_unused_columns=False
         )
         
-        print("✅ Training arguments configured")
+        print("[OK] Training arguments configured")
         return args
     
     def train(self):
-        """Execute training pipeline."""
+        """Execute training pipeline - GPU optimized."""
+        # Check GPU availability first
+        check_gpu()
+        
         print("\n" + "="*70)
-        print("🚀 PHARMACEUTICAL TRANSLATOR - TRAINING PIPELINE")
+        print("[START] PHARMACEUTICAL TRANSLATOR - TRAINING PIPELINE")
         print("="*70)
         
         # Setup
         self.setup_model_and_tokenizer()
         self.setup_lora()
+        
+        # Enable gradient checkpointing for memory efficiency
+        if hasattr(self.model, 'gradient_checkpointing_enable'):
+            self.model.gradient_checkpointing_enable()
+            print("[OK] Gradient checkpointing enabled")
         
         # Data
         tokenized_data, raw_dataset = self.load_and_preprocess_data()
@@ -256,7 +303,7 @@ class ImprovedPharmaTrainer:
                 json.dump(results, f, indent=2, default=str)
             
             print("\n" + "="*70)
-            print("✅ TRAINING COMPLETE")
+            print("[OK] TRAINING COMPLETE")
             print("="*70)
             print(f"Model saved: {adapter_path}")
             print(f"Results saved: {results_path}")
@@ -265,7 +312,7 @@ class ImprovedPharmaTrainer:
             return True
         
         except Exception as e:
-            print(f"\n❌ Training failed: {e}")
+            print(f"\n[ERROR] Training failed: {e}")
             import traceback
             traceback.print_exc()
             return False

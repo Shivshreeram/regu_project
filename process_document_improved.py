@@ -1,6 +1,7 @@
 """
 Improved document processor with structure preservation and validation.
 Handles complex regulatory documents with table and section preservation.
+GPU optimized for RTX 4060.
 """
 
 import torch
@@ -25,6 +26,16 @@ def load_config(config_path: str = "config.yaml") -> dict:
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
+def check_gpu():
+    """Verify GPU availability for document processing."""
+    if not torch.cuda.is_available():
+        print("[WARNING] CUDA not available. Document processing will run on CPU.")
+        return False
+    device = torch.cuda.current_device()
+    props = torch.cuda.get_device_properties(device)
+    print(f"[GPU] Using device: {props.name}")
+    return True
+
 class ImprovedDocumentProcessor:
     """Process pharmaceutical regulatory documents with validation."""
     
@@ -43,11 +54,13 @@ class ImprovedDocumentProcessor:
         }
     
     def load_model(self, adapter_path: str = None):
-        """Load model and tokenizer."""
+        """Load model and tokenizer - GPU optimized."""
+        check_gpu()
+        
         if adapter_path is None:
             adapter_path = self.config["paths"]["adapter_final"]
         
-        print(f"🔌 Loading model from {adapter_path}...")
+        print(f"[LOAD] Loading model from {adapter_path}...")
         
         base_model = self.config["model"]["base_model"]
         
@@ -61,7 +74,7 @@ class ImprovedDocumentProcessor:
         self.model = PeftModel.from_pretrained(self.model, adapter_path)
         self.model.eval()
         
-        print("✅ Model loaded")
+        print("[OK] Model loaded")
     
     def translate_text(self, text: str, max_retries: int = None) -> str:
         """

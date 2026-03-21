@@ -1,6 +1,7 @@
 """
 Evaluation module with BLEU, METEOR, ChrF, and TER metrics.
 Computes pharmaceutical translation quality scores.
+GPU optimized for RTX 4060.
 """
 
 import os
@@ -18,13 +19,23 @@ try:
     from sacrebleu import BLEU, METEOR, CHRF, TER
     HAS_SACREBLEU = True
 except ImportError:
-    print("⚠️  sacrebleu not installed. Install with: pip install sacrebleu")
+    print("[WARNING] sacrebleu not installed. Install with: pip install sacrebleu")
     HAS_SACREBLEU = False
 
 def load_config(config_path: str = "config.yaml") -> dict:
     """Load configuration."""
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+def check_gpu():
+    """Verify GPU availability for evaluation."""
+    if not torch.cuda.is_available():
+        print("[WARNING] CUDA not available. Evaluation will run on CPU.")
+        return False
+    device = torch.cuda.current_device()
+    props = torch.cuda.get_device_properties(device)
+    print(f"[GPU] Using device: {props.name}")
+    return True
 
 class PharmaTranslationEvaluator:
     def __init__(self, config_path: str = "config.yaml"):
@@ -34,11 +45,13 @@ class PharmaTranslationEvaluator:
         self.results = {}
     
     def load_model(self, adapter_path: str = None):
-        """Load trained model with adapter."""
+        """Load trained model with adapter - GPU optimized."""
+        check_gpu()
+        
         if adapter_path is None:
             adapter_path = self.config["paths"]["adapter_final"]
         
-        print(f"🔌 Loading model from {adapter_path}...")
+        print(f"[LOAD] Loading model from {adapter_path}...")
         
         base_model = self.config["model"]["base_model"]
         
@@ -53,7 +66,7 @@ class PharmaTranslationEvaluator:
         self.model = PeftModel.from_pretrained(self.model, adapter_path)
         self.model.eval()
         
-        print("✅ Model loaded")
+        print("[OK] Model loaded")
     
     def translate_batch(self, texts: List[str], batch_size: int = 8) -> List[str]:
         """Translate batch of texts."""
@@ -129,7 +142,7 @@ class PharmaTranslationEvaluator:
             except Exception as e:
                 print(f"   TER: Error - {e}")
         else:
-            print("   ⚠️  sacrebleu not available. Install for full metrics.")
+            print("   [WARNING] sacrebleu not available. Install for full metrics.")
         
         return metrics
     
@@ -141,7 +154,7 @@ class PharmaTranslationEvaluator:
         print(f"📂 Loading test data from {csv_path}...")
         
         if not os.path.exists(csv_path):
-            print(f"❌ File not found: {csv_path}")
+            print(f"[ERROR] File not found: {csv_path}")
             return {}
         
         df = pd.read_csv(csv_path)
@@ -244,7 +257,7 @@ class PharmaTranslationEvaluator:
         self.generate_report()
         
         print("\n" + "="*70)
-        print("✅ EVALUATION COMPLETE")
+        print("[OK] EVALUATION COMPLETE")
         print("="*70)
 
 
