@@ -24,7 +24,7 @@ class PharmaGlossaryBuilder:
     
     def load_csv_pharma_terms(self, csv_files: List[str]) -> None:
         """Load regulatory terms from CSV files."""
-        print("📚 Loading pharmaceutical regulatory terminology...")
+        print("[LOAD] Loading pharmaceutical regulatory terminology...")
         
         for csv_file in csv_files:
             if not os.path.exists(csv_file):
@@ -86,7 +86,7 @@ class PharmaGlossaryBuilder:
     
     def add_hardcoded_regulatory_terms(self) -> None:
         """Add critical SmPC (Summary of Product Characteristics) terms."""
-        print("🔐 Adding hardcoded SmPC regulatory standards...")
+        print("[ADD] Adding hardcoded SmPC regulatory standards...")
         
         smpc_terms = {
             "Summary of Product Characteristics".lower(): {
@@ -165,7 +165,7 @@ class PharmaGlossaryBuilder:
     
     def save_glossary(self, output_format: str = "json") -> str:
         """Save glossary to file."""
-        print(f"💾 Saving glossary to {self.output_path}...")
+        print(f"[SAVE] Saving glossary to {self.output_path}...")
         
         # Convert defaultdict to regular dict for JSON serialization
         glossary_dict = {}
@@ -208,7 +208,7 @@ class PharmaGlossaryBuilder:
         stats = self.get_statistics()
         
         print("\n" + "="*60)
-        print("📊 GLOSSARY STATISTICS")
+        print("[STATS] GLOSSARY STATISTICS")
         print("="*60)
         print(f"Total Terms: {stats['total_terms']}")
         print(f"Total Translations: {stats['total_translations']}")
@@ -238,4 +238,4 @@ if __name__ == "__main__":
     builder.print_statistics()
     builder.save_glossary()
     
-    print("🎉 Glossary building complete!")
+    print("[SUCCESS] Glossary building complete!")

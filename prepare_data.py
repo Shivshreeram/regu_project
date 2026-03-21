@@ -25,7 +25,7 @@ class DataPreparationPipeline:
     
     def build_regulatory_glossary(self) -> None:
         """Build pharmaceutical regulatory glossary from CSVs."""
-        print("🔨 Building regulatory glossary...")
+        print("[BUILD] Building regulatory glossary...")
         csv_files = self.config["data"]["regulatory_csvs"]
         
         builder = PharmaGlossaryBuilder(self.config["data"]["glossary_output"])
@@ -37,7 +37,7 @@ class DataPreparationPipeline:
     
     def convert_glossary_to_pairs(self) -> pd.DataFrame:
         """Convert glossary dictionary to training pairs DataFrame."""
-        print("📝 Converting glossary to training pairs...")
+        print("[CONVERT] Converting glossary to training pairs...")
         
         glossary_pairs = []
         
@@ -60,7 +60,7 @@ class DataPreparationPipeline:
     
     def load_emea_bilingual(self) -> pd.DataFrame:
         """Load EMEA bilingual corpus."""
-        print("\n📂 Loading EMEA bilingual corpus...")
+        print("\n[LOAD] Loading EMEA bilingual corpus...")
         
         en_file = self.config["data"]["raw_sources"][0]
         de_file = self.config["data"]["raw_sources"][1]
@@ -91,7 +91,7 @@ class DataPreparationPipeline:
     
     def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply comprehensive data cleaning."""
-        print("\n🧹 Cleaning data...")
+        print("\n[CLEAN] Cleaning data...")
         
         initial_count = len(df)
         config_data = self.config["data"]
@@ -128,15 +128,15 @@ class DataPreparationPipeline:
         df = df.drop(columns=["en_words", "de_words"])
         
         removed = initial_count - len(df)
-        print(f"📊 Original: {initial_count} pairs")
-        print(f"🗑️  Removed: {removed} pairs")
+        print(f"[STATS] Original: {initial_count} pairs")
+        print(f"[STATS] Removed: {removed} pairs")
         print(f"[OK] Final: {len(df)} pairs")
         
         return df
     
     def combine_data_sources(self) -> pd.DataFrame:
         """Combine EMEA and glossary-derived data."""
-        print("\n🔀 Combining data sources...")
+        print("\n[COMBINE] Combining data sources...")
         
         # Load glossary-based pairs
         df_glossary = self.convert_glossary_to_pairs()
@@ -156,7 +156,7 @@ class DataPreparationPipeline:
                                 df_glossary[["en", "de", "source"]]], 
                                ignore_index=True)
         
-        print(f"📦 Combined dataset size: {len(combined)} pairs")
+        print(f"[STATS] Combined dataset size: {len(combined)} pairs")
         return combined
     
     def prepare_training_data(self) -> Tuple[str, str]:

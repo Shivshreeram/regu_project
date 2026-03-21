@@ -1,6 +1,6 @@
 """
 Master Pipeline: Complete pharmaceutical translator workflow.
-Orchestrates: data prep → glossary building → training → evaluation → document processing.
+Orchestrates: data prep -> glossary building -> training -> evaluation -> document processing.
 """
 
 import os
@@ -256,6 +256,6 @@ def main():
     elif args.steps == "process":
         pipeline.step_5_process_document(args.document)
 
-
+tas
 if __name__ == "__main__":
     main()

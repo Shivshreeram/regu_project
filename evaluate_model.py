@@ -101,7 +101,7 @@ class PharmaTranslationEvaluator:
     
     def compute_metrics(self, predictions: List[str], references: List[str]) -> Dict:
         """Compute BLEU, METEOR, ChrF, TER scores."""
-        print("\n📊 Computing translation metrics...")
+        print("\n[STATS] Computing translation metrics...")
         
         metrics = {}
         
@@ -151,7 +151,7 @@ class PharmaTranslationEvaluator:
         if csv_path is None:
             csv_path = self.config["data"]["output_cleaned"]
         
-        print(f"📂 Loading test data from {csv_path}...")
+        print(f"\n[LOAD] Loading test data from {csv_path}...")
         
         if not os.path.exists(csv_path):
             print(f"[ERROR] File not found: {csv_path}")
@@ -162,7 +162,7 @@ class PharmaTranslationEvaluator:
         if max_samples:
             df = df.sample(n=min(max_samples, len(df)), random_state=42)
         
-        print(f"📊 Evaluating on {len(df)} samples...")
+        print(f"[STATS] Evaluating on {len(df)} samples...")
         
         en_texts = df["en"].tolist()
         de_references = df["de"].tolist()
@@ -197,7 +197,7 @@ class PharmaTranslationEvaluator:
     
     def manual_quality_check(self, num_samples: int = 10) -> None:
         """Perform manual quality check on sample translations."""
-        print(f"\n🔍 Manual quality check on {num_samples} samples...")
+        print(f"\n[CHECK] Manual quality check on {num_samples} samples...")
         print("="*70)
         
         csv_path = self.config["data"]["output_cleaned"]
@@ -242,13 +242,13 @@ class PharmaTranslationEvaluator:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, default=str)
         
-        print(f"\n💾 Report saved: {output_path}")
+        print(f"\n[SAVE] Report saved: {output_path}")
         return output_path
     
     def evaluate(self):
         """Full evaluation pipeline."""
         print("\n" + "="*70)
-        print("📊 PHARMACEUTICAL TRANSLATOR - EVALUATION PIPELINE")
+        print("[STATS] PHARMACEUTICAL TRANSLATOR - EVALUATION PIPELINE")
         print("="*70)
         
         self.load_model()

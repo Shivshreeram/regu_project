@@ -125,7 +125,7 @@ class ImprovedDocumentProcessor:
             
             except Exception as e:
                 if attempt == max_retries - 1:
-                    print(f"⚠️  Translation failed after {max_retries} attempts: {str(e)[:50]}")
+                    print(f"[WARNING] Translation failed after {max_retries} attempts: {str(e)[:50]}")
                     self.stats["failed_translations"] += 1
                     
                     # Fallback
@@ -209,21 +209,21 @@ class ImprovedDocumentProcessor:
             output_path = f"{base}_Translated_DE_v2{ext}"
         
         print("\n" + "="*70)
-        print("📄 PROCESSING PHARMACEUTICAL REGULATORY DOCUMENT")
+        print("[DOCUMENT] PROCESSING PHARMACEUTICAL REGULATORY DOCUMENT")
         print("="*70)
         print(f"Input:  {input_path}")
         print(f"Output: {output_path}")
         
         if not os.path.exists(input_path):
-            print(f"❌ Document not found: {input_path}")
+            print(f"[ERROR] Document not found: {input_path}")
             return {}
         
         # Load document
-        print("\n📂 Loading document...")
+        print("\n[LOAD] Loading document...")
         doc = Document(input_path)
         
         # Process blocks
-        print("🔄 Translating content...")
+        print("[PROCESS] Translating content...")
         block_count = 0
         
         for block in self.iter_block_items(doc):
@@ -240,10 +240,10 @@ class ImprovedDocumentProcessor:
                     block_count += 1
             
             except Exception as e:
-                print(f"⚠️  Error processing block: {str(e)[:60]}")
+                print(f"[WARNING] Error processing block: {str(e)[:60]}")
         
         # Save document
-        print(f"\n💾 Saving translated document...")
+        print(f"\n[SAVE] Saving translated document...")
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
         doc.save(output_path)
         
@@ -254,7 +254,7 @@ class ImprovedDocumentProcessor:
         report = self._generate_report(input_path, output_path, consistency_issues)
         
         print("\n" + "="*70)
-        print("✅ DOCUMENT PROCESSING COMPLETE")
+        print("[OK] DOCUMENT PROCESSING COMPLETE")
         print("="*70)
         print(f"Blocks processed: {block_count}")
         print(f"Total segments: {self.stats['total_segments']}")
@@ -309,7 +309,7 @@ class ImprovedDocumentProcessor:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, ensure_ascii=False)
         
-        print(f"📋 Report saved: {report_path}")
+        print(f"[REPORT] Report saved: {report_path}")
         
         return report
 
@@ -328,4 +328,4 @@ if __name__ == "__main__":
     processor.load_model()
     report = processor.process_document(input_doc)
     
-    print("\n🎉 Processing complete!")
+    print("\n[SUCCESS] Processing complete!")

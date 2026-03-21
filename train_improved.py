@@ -64,11 +64,11 @@ class TimerCallback(TrainerCallback):
     """Track training time."""
     def on_train_begin(self, args, state, control, **kwargs):
         self.start_time = time.time()
-        print(f"\n⏱️ Training started at: {time.strftime('%H:%M:%S')}")
+        print(f"\n[TIME] Training started at: {time.strftime('%H:%M:%S')}")
 
     def on_train_end(self, args, state, control, **kwargs):
         total_time = time.time() - self.start_time
-        print(f"\n⏱️ TOTAL TRAINING TIME: {str(timedelta(seconds=int(total_time)))}")
+        print(f"\n[TIME] TOTAL TRAINING TIME: {str(timedelta(seconds=int(total_time)))}")
 
 class ImprovedPharmaTrainer:
     def __init__(self, config_path: str = "config.yaml"):
@@ -79,7 +79,7 @@ class ImprovedPharmaTrainer:
     
     def setup_model_and_tokenizer(self):
         """Initialize base model and tokenizer."""
-        print("🧠 Initializing model and tokenizer...")
+        print("[INIT] Initializing model and tokenizer...")
         
         model_id = self.config["model"]["base_model"]
         
@@ -100,7 +100,7 @@ class ImprovedPharmaTrainer:
     
     def setup_lora(self):
         """Configure LoRA with enhanced settings."""
-        print("🔧 Configuring LoRA adapters...")
+        print("[CONFIG] Configuring LoRA adapters...")
         
         lora_config_dict = self.config["training"]["lora"]
         
@@ -126,7 +126,7 @@ class ImprovedPharmaTrainer:
     
     def load_and_preprocess_data(self):
         """Load and preprocess training data."""
-        print("\n📦 Loading dataset...")
+        print("\n[LOAD] Loading dataset...")
         
         csv_path = self.config["data"]["output_cleaned"]
         
@@ -160,7 +160,7 @@ class ImprovedPharmaTrainer:
         print(f"   Test: {len(dataset_dict['test'])}")
         
         # Tokenization
-        print("🛠️ Tokenizing data...")
+        print("[TOKENIZE] Tokenizing data...")
         
         def preprocess_function(examples):
             max_input_length = self.config["training"]["max_seq_length"]
@@ -255,14 +255,13 @@ class ImprovedPharmaTrainer:
         training_args = self.setup_training_args()
         
         # Trainer
-        print("\n🏋️ Initializing trainer...")
+        print("\n[INIT] Initializing trainer...")
         
         self.trainer = Seq2SeqTrainer(
             model=self.model,
             args=training_args,
             train_dataset=tokenized_data["train"],
             eval_dataset=tokenized_data["val"],
-            tokenizer=self.tokenizer,
             data_collator=DataCollatorForSeq2Seq(self.tokenizer, model=self.model),
             callbacks=[
                 TimerCallback(),
@@ -274,12 +273,12 @@ class ImprovedPharmaTrainer:
         )
         
         # Train
-        print("🏋️ Starting training...\n")
+        print("[START] Starting training...\n")
         try:
             train_result = self.trainer.train()
             
             # Evaluate on test set
-            print("\n📊 Evaluating on test set...")
+            print("\n[EVAL] Evaluating on test set...")
             test_results = self.trainer.evaluate(
                 eval_dataset=tokenized_data["test"],
                 metric_key_prefix="test"
@@ -287,7 +286,7 @@ class ImprovedPharmaTrainer:
             
             # Save final model
             adapter_path = self.config["paths"]["adapter_final"]
-            print(f"\n💾 Saving model to {adapter_path}...")
+            print(f"\n[SAVE] Saving model to {adapter_path}...")
             self.model.save_pretrained(adapter_path)
             self.tokenizer.save_pretrained(adapter_path)
             
