@@ -4,12 +4,15 @@ Follows configuration from config.yaml for reproducibility.
 Optimized for RTX 4060 GPU execution.
 """
 
-import torch
-import yaml
-import time
 import os
+import json
+import time
+import random
+import yaml
+import torch
+import numpy as np
 from datetime import timedelta
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset, load_from_disk, set_seed
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
@@ -20,7 +23,6 @@ from transformers import (
     EarlyStoppingCallback
 )
 from peft import LoraConfig, get_peft_model, TaskType
-import json
 
 def check_gpu():
     """Verify CUDA/GPU availability and log GPU info."""
@@ -73,9 +75,21 @@ class TimerCallback(TrainerCallback):
 class ImprovedPharmaTrainer:
     def __init__(self, config_path: str = "config.yaml"):
         self.config = load_config(config_path)
+        self.seed = self.config["data"].get("random_seed", self.config["validation"].get("seed", 42))
         self.model = None
         self.tokenizer = None
         self.trainer = None
+        self.set_seed()
+
+    def set_seed(self):
+        """Set deterministic seeds for reproducibility."""
+        os.environ["PYTHONHASHSEED"] = str(self.seed)
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.seed)
+        set_seed(self.seed)
     
     def setup_model_and_tokenizer(self):
         """Initialize base model and tokenizer."""

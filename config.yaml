@@ -28,6 +28,13 @@ data:
   remove_duplicates: true
   remove_near_duplicates: true
 
+  # Glossary context mining and reproducibility
+  random_seed: 42
+  glossary_context_oversample_pct: 0.10
+  glossary_max_contexts_per_term: 10
+  glossary_template_count_per_term: 4
+  glossary_context_pairs_output: "glossary_context_pairs.csv"
+
 model:
   base_model: "facebook/nllb-200-distilled-600M"
   src_lang: "eng_Latn"

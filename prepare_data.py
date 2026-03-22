@@ -3,12 +3,15 @@ Comprehensive data preparation with regulatory glossary integration.
 Combines EMEA bilingual corpora with pharmaceutical domain terms.
 """
 
-import pandas as pd
 import os
-import yaml
-from typing import Tuple
-from build_glossary import PharmaGlossaryBuilder
+import re
 import json
+import random
+import numpy as np
+import pandas as pd
+import yaml
+from typing import Tuple, List
+from build_glossary import PharmaGlossaryBuilder
 
 def load_config(config_path: str = "config.yaml") -> dict:
     """Load configuration from YAML file."""
@@ -18,11 +21,19 @@ def load_config(config_path: str = "config.yaml") -> dict:
 class DataPreparationPipeline:
     def __init__(self, config_path: str = "config.yaml"):
         self.config = load_config(config_path)
+        self.seed = self.config["data"].get("random_seed", 42)
+        self.set_seed()
         self.glossary = None
         self.df_emea = None
         self.df_regulatory = None
         self.df_combined = None
     
+    def set_seed(self):
+        """Set deterministic seed for reproducible sampling and text generation."""
+        os.environ["PYTHONHASHSEED"] = str(self.seed)
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+
     def build_regulatory_glossary(self) -> None:
         """Build pharmaceutical regulatory glossary from CSVs."""
         print("[BUILD] Building regulatory glossary...")
@@ -88,6 +99,89 @@ class DataPreparationPipeline:
         except Exception as e:
             print(f"[ERROR] Error loading EMEA: {e}")
             return pd.DataFrame()
+
+    def generate_glossary_templates(self, en_term: str, de_term: str, count: int) -> List[dict]:
+        """Generate fallback glossary sentence pairs when no corpus context is found."""
+        templates = [
+            "The patient was given {term}.",
+            "Treatment included {term} administered daily.",
+            "{term} is used in the treatment of the condition.",
+            "Discontinue {term} if adverse effects occur.",
+            "The physician prescribed {term} for the patient.",
+            "Administration of {term} improved symptoms.",
+            "Use {term} with caution in elderly patients.",
+            "Monitor the patient while using {term}."
+        ]
+        selected = templates[:count]
+        return [
+            {
+                "en": template.format(term=en_term),
+                "de": template.format(term=de_term),
+                "source": "glossary_template",
+                "term": en_term
+            }
+            for template in selected
+        ]
+
+    def build_glossary_context_pairs(self) -> pd.DataFrame:
+        """Build glossary examples by mining EMEA sentence contexts."""
+        print("\n[BUILD] Mining glossary context pairs from EMEA corpus...")
+        df_emea = self.load_emea_bilingual()
+        if df_emea.empty:
+            print("[WARNING] No EMEA corpus available for glossary context mining.")
+            return pd.DataFrame()
+
+        en_lines = df_emea["en"].tolist()
+        de_lines = df_emea["de"].tolist()
+        max_contexts = self.config["data"].get("glossary_max_contexts_per_term", 10)
+        fallback_count = self.config["data"].get("glossary_template_count_per_term", 4)
+
+        glossary_context_pairs = []
+        missing_context_terms = []
+
+        for en_term, data in self.glossary.items():
+            translations = data.get("translations", [])
+            if not translations:
+                continue
+            de_term = translations[0]
+            pattern = re.compile(r"\b" + re.escape(en_term) + r"\b", flags=re.IGNORECASE)
+            found = 0
+
+            for idx, en_text in enumerate(en_lines):
+                if pattern.search(en_text):
+                    glossary_context_pairs.append({
+                        "en": en_text,
+                        "de": de_lines[idx],
+                        "source": "glossary_context",
+                        "term": en_term
+                    })
+                    found += 1
+                    if found >= max_contexts:
+                        break
+
+            if found == 0:
+                missing_context_terms.append(en_term)
+                glossary_context_pairs.extend(
+                    self.generate_glossary_templates(en_term, de_term, fallback_count)
+                )
+
+        if not glossary_context_pairs:
+            print("[WARNING] No glossary context pairs were generated.")
+            return pd.DataFrame()
+
+        df_context = pd.DataFrame(glossary_context_pairs)
+        df_context = df_context.drop_duplicates(subset=["en", "de"])
+
+        output_path = self.config["data"].get(
+            "glossary_context_pairs_output",
+            "glossary_context_pairs.csv"
+        )
+        df_context.to_csv(output_path, index=False, encoding="utf-8")
+        print(f"[SAVE] Glossary context/template pairs saved: {output_path}")
+        print(f"[STATS] Total glossary context/template pairs: {len(df_context)}")
+        print(f"[STATS] Terms without EMEA context: {len(missing_context_terms)}")
+
+        return df_context
     
     def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Apply comprehensive data cleaning."""
@@ -138,24 +232,41 @@ class DataPreparationPipeline:
         """Combine EMEA and glossary-derived data."""
         print("\n[COMBINE] Combining data sources...")
         
-        # Load glossary-based pairs
-        df_glossary = self.convert_glossary_to_pairs()
+        # Load glossary-based context pairs
+        df_glossary = self.build_glossary_context_pairs()
         
         # Load EMEA
         df_emea = self.load_emea_bilingual()
         
+        if df_emea.empty and df_glossary.empty:
+            print("[ERROR] No training data available.")
+            return pd.DataFrame()
+
+        if not df_glossary.empty and not df_emea.empty:
+            oversample_pct = self.config["data"].get("glossary_context_oversample_pct", 0.10)
+            target_glossary_count = int(len(df_emea) * oversample_pct)
+
+            if len(df_glossary) > target_glossary_count and target_glossary_count > 0:
+                df_glossary = df_glossary.sample(
+                    n=target_glossary_count,
+                    random_state=self.seed
+                ).reset_index(drop=True)
+                print(f"[SAMPLE] Reduced glossary context pairs to {len(df_glossary)} ({oversample_pct*100:.0f}% of EMEA data)")
+            else:
+                print(f"[SAMPLE] Using {len(df_glossary)} glossary context/template pairs")
+
         if df_glossary.empty:
-            print("[WARNING] No glossary data, using EMEA only")
+            print("[WARNING] No glossary context data, using EMEA only")
             combined = df_emea
         elif df_emea.empty:
             print("[WARNING] No EMEA data, using glossary only")
             combined = df_glossary
         else:
-            # Combine both sources
-            combined = pd.concat([df_emea[["en", "de", "source"]], 
-                                df_glossary[["en", "de", "source"]]], 
-                               ignore_index=True)
-        
+            combined = pd.concat([
+                df_emea[["en", "de", "source"]],
+                df_glossary[["en", "de", "source"]]
+            ], ignore_index=True)
+
         print(f"[STATS] Combined dataset size: {len(combined)} pairs")
         return combined
     

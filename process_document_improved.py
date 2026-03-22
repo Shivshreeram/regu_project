@@ -4,10 +4,12 @@ Handles complex regulatory documents with table and section preservation.
 GPU optimized for RTX 4060.
 """
 
-import torch
-import yaml
 import os
 import json
+import random
+import torch
+import yaml
+import numpy as np
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 from docx import Document
@@ -41,6 +43,8 @@ class ImprovedDocumentProcessor:
     
     def __init__(self, config_path: str = "config.yaml"):
         self.config = load_config(config_path)
+        self.seed = self.config["data"].get("random_seed", self.config["validation"].get("seed", 42))
+        self.set_seed()
         self.model = None
         self.tokenizer = None
         self.validator = GlossaryValidator(config_path=config_path)
@@ -52,6 +56,14 @@ class ImprovedDocumentProcessor:
             "failed_translations": 0,
             "glossary_matches": 0
         }
+
+    def set_seed(self):
+        os.environ["PYTHONHASHSEED"] = str(self.seed)
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.seed)
     
     def load_model(self, adapter_path: str = None):
         """Load model and tokenizer - GPU optimized."""
