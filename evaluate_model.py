@@ -208,6 +208,91 @@ class PharmaTranslationEvaluator:
         
         return self.results
     
+    def calculate_glossary_match_rate(self, glossary_path: str = None) -> float:
+        """Calculate percentage of glossary terms correctly translated."""
+        if glossary_path is None:
+            glossary_path = self.config["data"]["glossary_output"]
+        
+        if not os.path.exists(glossary_path):
+            print(f"[WARNING] Glossary not found: {glossary_path}")
+            return 0.0
+        
+        # Load glossary
+        with open(glossary_path, "r", encoding="utf-8") as f:
+            glossary = json.load(f)
+        
+        # Load test data
+        csv_path = self.config["data"]["output_cleaned"]
+        df = pd.read_csv(csv_path).sample(n=min(100, len(pd.read_csv(csv_path))), random_state=42)
+        
+        glossary_terms_found = 0
+        glossary_terms_total = 0
+        
+        for en_text, de_ref in zip(df["en"], df["de"]):
+            # Extract glossary terms from English text
+            for en_term, term_data in glossary.items():
+                if en_term.lower() in en_text.lower():
+                    glossary_terms_total += 1
+                    
+                    # Check if any German translation appears in reference
+                    de_options = term_data.get("translations", [])
+                    if any(de_opt.lower() in de_ref.lower() for de_opt in de_options):
+                        glossary_terms_found += 1
+        
+        if glossary_terms_total == 0:
+            return 0.0
+        
+        match_rate = (glossary_terms_found / glossary_terms_total) * 100
+        print(f"\n[GLOSSARY] Match Rate: {match_rate:.2f}% ({glossary_terms_found}/{glossary_terms_total})")
+        return match_rate
+    
+    def calculate_term_consistency(self, csv_path: str = None) -> float:
+        """Calculate consistency of term translations within documents."""
+        if csv_path is None:
+            csv_path = self.config["data"]["output_cleaned"]
+        
+        df = pd.read_csv(csv_path).sample(n=min(100, len(pd.read_csv(csv_path))), random_state=42)
+        
+        # Track term translations
+        term_translations = {}
+        
+        for en_text, de_ref in zip(df["en"], df["de"]):
+            # Extract words
+            import re
+            en_words = re.findall(r'\b[a-zA-Z]+\b', en_text.lower())
+            de_words = re.findall(r'\b[a-zäöüß]+\b', de_ref.lower())
+            
+            # For each English word, map to German equivalents in reference
+            for en_word in set(en_words):
+                if len(en_word) >= 4:  # Only significant words
+                    if en_word not in term_translations:
+                        term_translations[en_word] = []
+                    
+                    # Simple approximation: if word present, assume first match
+                    for de_word in de_words:
+                        if len(de_word) >= 4:
+                            term_translations[en_word].append(de_word)
+        
+        # Check consistency: count how many terms have single consistent translation
+        consistent_terms = 0
+        total_terms = 0
+        
+        for en_term, de_variants in term_translations.items():
+            if len(de_variants) > 0:
+                total_terms += 1
+                # Consider consistent if 80%+ are the same
+                most_common = max(set(de_variants), key=de_variants.count)
+                consistency = de_variants.count(most_common) / len(de_variants)
+                if consistency >= 0.8:
+                    consistent_terms += 1
+        
+        if total_terms == 0:
+            return 0.0
+        
+        consistency_rate = (consistent_terms / total_terms) * 100
+        print(f"[CONSISTENCY] Rate: {consistency_rate:.2f}% ({consistent_terms}/{total_terms})")
+        return consistency_rate
+    
     def manual_quality_check(self, num_samples: int = 10) -> None:
         """Perform manual quality check on sample translations."""
         print(f"\n[CHECK] Manual quality check on {num_samples} samples...")
@@ -266,6 +351,15 @@ class PharmaTranslationEvaluator:
         
         self.load_model()
         self.evaluate_dataset(max_samples=100)  # Evaluation on 100 samples
+        
+        # Calculate additional metrics
+        glossary_match = self.calculate_glossary_match_rate()
+        consistency_rate = self.calculate_term_consistency()
+        
+        # Add to results
+        self.results["metrics"]["glossary_match_rate"] = glossary_match
+        self.results["metrics"]["consistency_rate"] = consistency_rate
+        
         self.manual_quality_check(num_samples=10)
         self.generate_report()
         
