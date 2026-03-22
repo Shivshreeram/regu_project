@@ -52,7 +52,7 @@ PHASE 2: INSTALLATION (First Run)
 🔲 Install Python packages
    ```
    pip install torch transformers peft datasets pandas pyyaml python-docx sacrebleu
-   ```
+   ```           
 
 🔲 Verify installation
    ```
@@ -109,8 +109,8 @@ PHASE 6: DOCUMENT TRANSLATION (2 minutes/page)
 ================================================================================
 
 ⏳ Step 5: Process Document
-   Command:  python process_document_improved.py xarelto_first_3_pages.docx
-   Input:    [document].docx + medical_adapter_final_v2/
+   Command:  .\venv\Scripts\python.exe process_document_improved.py xarelto_first_3_pages.docx
+   Input:    [document].docx + medical_adapter_final/
    Output:   [document]_Translated_DE_v2.docx
              [document]_report.json
    Time:     ~2 minutes per page
