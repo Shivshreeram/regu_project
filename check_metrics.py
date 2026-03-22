@@ -37,8 +37,33 @@ class MetricsChecker:
         try:
             with open(report_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                self.metrics.update(data)
+                
+                # Extract metrics from nested structure
+                if "evaluation_results" in data:
+                    eval_results = data["evaluation_results"]
+                    if "metrics" in eval_results:
+                        self.metrics.update(eval_results["metrics"])
+                    
+                    # Also store evaluation metadata
+                    if "dataset_size" in eval_results:
+                        self.metrics["dataset_size"] = eval_results["dataset_size"]
+                    if "sample_outputs_path" in eval_results:
+                        self.metrics["sample_outputs_path"] = eval_results["sample_outputs_path"]
+                
+                # Store config info
+                if "model_config" in data:
+                    self.metrics["model_config"] = data["model_config"]
+                
+                if "thresholds" in data:
+                    self.metrics["thresholds"] = data["thresholds"]
+                
                 print(f"[OK] Loaded evaluation report")
+                
+                # Debug: Check if metrics are empty
+                if not self.metrics or (len(self.metrics) == 0 or all(not v for k, v in self.metrics.items() if k not in ["model_config", "thresholds", "dataset_size", "sample_outputs_path"])):
+                    print("[WARNING] Metrics appear to be empty - evaluation may not have completed properly")
+                    self.issues.append("Metrics are empty in evaluation report")
+                
                 return True
         except Exception as e:
             self.issues.append(f"Failed to load report: {e}")
@@ -210,9 +235,20 @@ class MetricsChecker:
         print("\nDetailed Metrics Information:")
         print("-" * 70)
         
+        if not self.metrics:
+            print("[WARNING] No metrics loaded")
+            return
+        
         for key, value in self.metrics.items():
-            if key not in ["bleu", "meteor", "chrf", "ter", "glossary_match_rate", "consistency_rate"]:
+            if key not in ["bleu", "meteor", "chrf", "ter", "glossary_match_rate", "consistency_rate", "model_config", "thresholds"]:
                 print(f"{key:<35} : {value}")
+        
+        # Show model config
+        if "model_config" in self.metrics:
+            print(f"\nModel Configuration:")
+            config = self.metrics["model_config"]
+            print(f"  Base Model: {config.get('base_model', 'N/A')}")
+            print(f"  Adapter: {config.get('adapter', 'N/A')}")
         
         print("="*70)
     
@@ -304,7 +340,26 @@ def main():
     if checker.load_evaluation_report():
         results = checker.check_metrics()
         checker.print_report(results)
-        checker.print_detailed_metrics()
+        
+        # Check if metrics are empty
+        metrics_found = any(
+            checker.metrics.get(k) 
+            for k in ["bleu", "meteor", "chrf", "ter", "glossary_match_rate", "consistency_rate"]
+        )
+        
+        if not metrics_found:
+            print("\n" + "!"*70)
+            print("[ERROR] Metrics are empty in evaluation report!")
+            print("!"*70)
+            print("\nThis typically means:")
+            print("  1. Evaluation has not been run yet")
+            print("  2. Evaluation ran but metrics weren't saved to JSON")
+            print("\nSOLUTION: Re-run evaluation with:")
+            print("  .\venv\Scripts\python.exe evaluate_model.py")
+            print("\nThe metrics will be printed to console AND saved to report.")
+            print("!"*70)
+        else:
+            checker.print_detailed_metrics()
         
         # Print summary
         summary = checker.generate_summary()
@@ -319,7 +374,7 @@ def main():
             for issue in checker.issues:
                 print(f"  - {issue}")
         else:
-            print("\n[SUCCESS] No issues detected!")
+            print("\n[SUCCESS] No critical issues detected!")
     else:
         print("[ERROR] Could not load evaluation report")
         print("Run evaluation first: .\venv\Scripts\python.exe evaluate_model.py")
