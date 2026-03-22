@@ -3,6 +3,9 @@ medical_nllb_output/
 medical_adapter_final/
 medical_adapter_final_v2/
 
+# Tokenization Cache (auto-generated)
+tokenized_cache/
+
 # Large Data Files
 *.csv
 medical_training*.csv
