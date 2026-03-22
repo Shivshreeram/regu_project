@@ -16,11 +16,21 @@ from peft import PeftModel
 from datasets import load_dataset
 
 try:
-    from sacrebleu import BLEU, METEOR, CHRF, TER
+    from sacrebleu import BLEU, CHRF, TER
     HAS_SACREBLEU = True
+    
+    # Try to import METEOR (not available in newer versions)
+    try:
+        from sacrebleu import METEOR
+        HAS_METEOR = True
+    except ImportError:
+        HAS_METEOR = False
+        print("[WARNING] METEOR not available in this sacrebleu version. Will use alternative metrics.")
+        
 except ImportError:
     print("[WARNING] sacrebleu not installed. Install with: pip install sacrebleu")
     HAS_SACREBLEU = False
+    HAS_METEOR = False
 
 def load_config(config_path: str = "config.yaml") -> dict:
     """Load configuration."""
@@ -116,11 +126,14 @@ class PharmaTranslationEvaluator:
                 print(f"   BLEU: Error - {e}")
             
             try:
-                # METEOR
-                meteor = METEOR()
-                meteor_score = meteor.corpus_score(predictions, [references])
-                metrics["meteor"] = float(meteor_score.score)
-                print(f"   METEOR: {metrics['meteor']:.2f}")
+                # METEOR (if available)
+                if HAS_METEOR:
+                    meteor = METEOR()
+                    meteor_score = meteor.corpus_score(predictions, [references])
+                    metrics["meteor"] = float(meteor_score.score)
+                    print(f"   METEOR: {metrics['meteor']:.2f}")
+                else:
+                    print("   METEOR: Not available in this sacrebleu version")
             except Exception as e:
                 print(f"   METEOR: Error - {e}")
             
