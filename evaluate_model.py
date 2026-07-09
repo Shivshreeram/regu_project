@@ -235,8 +235,13 @@ class PharmaTranslationEvaluator:
             
             # Load test data
             csv_path = self.config["data"]["output_cleaned"]
+<<<<<<< HEAD
             full_df = pd.read_csv(csv_path)
             df = full_df.sample(n=min(50, len(full_df)), random_state=self.seed)
+=======
+            df = pd.read_csv(csv_path).sample(n=min(50, len(pd.read_csv(csv_path))), random_state=42)
+            
+>>>>>>> 861fd104a307b1b6893f19a12f4413317e9b5fe5
             glossary_terms_found = 0
             glossary_terms_total = 0
             
@@ -272,8 +277,12 @@ class PharmaTranslationEvaluator:
             csv_path = self.config["data"]["output_cleaned"]
         
         try:
+<<<<<<< HEAD
             full_df = pd.read_csv(csv_path)
             df = full_df.sample(n=min(50, len(full_df)), random_state=self.seed)
+=======
+            df = pd.read_csv(csv_path).sample(n=min(50, len(pd.read_csv(csv_path))), random_state=42)
+>>>>>>> 861fd104a307b1b6893f19a12f4413317e9b5fe5
             
             import re
             

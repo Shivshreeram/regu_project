@@ -12,7 +12,7 @@ import yaml
 import torch
 import numpy as np
 from datetime import timedelta
-from datasets import load_dataset, load_from_disk, set_seed
+from datasets import load_dataset, load_from_disk
 from transformers import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
@@ -89,7 +89,8 @@ class ImprovedPharmaTrainer:
         torch.manual_seed(self.seed)
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(self.seed)
-        set_seed(self.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
     
     def setup_model_and_tokenizer(self):
         """Initialize base model and tokenizer."""
