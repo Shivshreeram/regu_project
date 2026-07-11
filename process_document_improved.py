@@ -12,6 +12,7 @@ import yaml
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
+from collections import defaultdict
 from docx import Document
 from docx.oxml.text.paragraph import CT_P
 from docx.oxml.table import CT_Tbl
@@ -183,6 +184,50 @@ class ImprovedDocumentProcessor:
             elif isinstance(child, CT_Tbl):
                 yield Table(child, parent)
     
+    def clean_inline_table(self, text: str) -> str:
+        """
+        Clean inline table content with repetitive headers.
+        Detects and removes duplicate column headers (e.g., 'Einheitswert' repeated 50+ times).
+        """
+        # Check if text contains pipe-separated table markers
+        if "|" not in text:
+            return text
+        
+        # Split by pipes
+        parts = text.split("|")
+        
+        # If repetitive columns detected, keep only first few unique headers and data
+        if len(parts) > 15:  # Likely malformed table with many columns
+            # Look for repeated tokens
+            token_counts = defaultdict(int)
+            for part in parts:
+                stripped = part.strip()
+                if stripped:
+                    token_counts[stripped] += 1
+            
+            # If any token repeated >5 times, it's likely a mangled table header
+            heavily_repeated = [t for t, count in token_counts.items() if count > 5]
+            
+            if heavily_repeated:
+                print(f"[CLEAN] Detected malformed inline table with {len(parts)} columns")
+                print(f"[CLEAN] Repeated tokens: {heavily_repeated}")
+                
+                # Reconstruct with unique parts only
+                seen = set()
+                cleaned_parts = []
+                for part in parts:
+                    stripped = part.strip()
+                    if stripped and stripped not in seen and stripped not in heavily_repeated:
+                        cleaned_parts.append(stripped)
+                        seen.add(stripped)
+                    elif stripped not in heavily_repeated:
+                        cleaned_parts.append(stripped)
+                
+                text = " | ".join(cleaned_parts[:20])  # Limit to first 20 meaningful parts
+                print(f"[CLEAN] Reduced to {len(cleaned_parts)} parts")
+        
+        return text
+    
     def process_paragraph(self, paragraph) -> None:
         """Process and translate a paragraph."""
         text = paragraph.text
@@ -191,6 +236,9 @@ class ImprovedDocumentProcessor:
             return
         
         self.stats["total_segments"] += 1
+        
+        # Clean inline table content if malformed
+        text = self.clean_inline_table(text)
         
         # Translate
         translated = self.translate_text(text)
