@@ -115,7 +115,7 @@ class ImprovedDocumentProcessor:
                 with torch.no_grad():
                     generated_tokens = self.model.generate(
                         **inputs,
-                        forced_bos_token_id=self.tokenizer.convert_tokens_to_ids("deu_Latn"),
+                        forced_bos_token_id=self.tokenizer.convert_tokens_to_ids("eng_Latn"),
                         max_length=512,
                         num_beams=4,
                         early_stopping=True

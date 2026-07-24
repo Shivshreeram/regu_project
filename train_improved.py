@@ -201,14 +201,14 @@ class ImprovedPharmaTrainer:
             max_input_length = self.config["training"]["max_seq_length"]
             
             model_inputs = self.tokenizer(
-                examples["en"],
+                examples["de"],
                 max_length=max_input_length,
                 truncation=True,
                 padding="max_length"
             )
             
             labels = self.tokenizer(
-                text_target=examples["de"],
+                text_target=examples["en"],
                 max_length=max_input_length,
                 truncation=True,
                 padding="max_length"

@@ -107,7 +107,7 @@ class PharmaTranslationEvaluator:
             with torch.no_grad():
                 generated_tokens = self.model.generate(
                     **inputs,
-                    forced_bos_token_id=self.tokenizer.convert_tokens_to_ids("deu_Latn"),
+                    forced_bos_token_id=self.tokenizer.convert_tokens_to_ids("eng_Latn"),
                     max_length=128,
                     num_beams=4
                 )
@@ -188,20 +188,20 @@ class PharmaTranslationEvaluator:
         
         print(f"[STATS] Evaluating on {len(df)} samples...")
         
-        en_texts = df["en"].tolist()
-        de_references = df["de"].tolist()
+        de_texts = df["de"].tolist()
+        en_references = df["en"].tolist()
         
-        # Translate
-        de_predictions = self.translate_batch(en_texts)
+        # Translate German -> English
+        en_predictions = self.translate_batch(de_texts)
         
         # Compute metrics
-        metrics = self.compute_metrics(de_predictions, de_references)
+        metrics = self.compute_metrics(en_predictions, en_references)
         
         # Save sample outputs
         sample_df = pd.DataFrame({
-            "english": en_texts[:10],
-            "reference_german": de_references[:10],
-            "predicted_german": de_predictions[:10]
+            "german": de_texts[:10],
+            "reference_english": en_references[:10],
+            "predicted_english": en_predictions[:10]
         })
         
         sample_path = os.path.join(

@@ -23,7 +23,14 @@ class PharmaGlossaryBuilder:
         }
     
     def load_csv_pharma_terms(self, csv_files: List[str]) -> None:
-        """Load regulatory terms from CSV files."""
+        """Load regulatory terms from CSV files.
+
+        The source data is not organized as a direct en/de column pair. Instead,
+        each record is identified by a `Term ID` and contains one or more language
+        rows (for example `en`, `de`, `es`, `pt`, etc.) in the `Language` column.
+        This method groups the rows by `Term ID` and pairs the English and German
+        term names found in those grouped records.
+        """
         print("[LOAD] Loading pharmaceutical regulatory terminology...")
         
         for csv_file in csv_files:
@@ -42,33 +49,76 @@ class PharmaGlossaryBuilder:
                         break
                 
                 category = category or "Uncategorized"
+
+                # Support both the current multilingual schema and any legacy
+                # `en`/`de` column layout that may exist in older data files.
+                language_col = next((col for col in df.columns if str(col).strip().lower() == "language"), None)
+                term_id_col = next((col for col in df.columns if str(col).strip().lower() == "term id"), None)
+                term_name_col = next((col for col in df.columns if str(col).strip().lower() == "term name"), None)
+
+                legacy_en_col = None
+                legacy_de_col = None
                 
-                # Try to find en-de column pairs (flexible column naming)
-                en_col = None
-                de_col = None
-                
-                # Find English column
-                for col in df.columns:
-                    if 'en' in col.lower() or 'english' in col.lower() or 'eng' in col.lower():
-                        en_col = col
-                        break
-                
-                # Find German column
-                for col in df.columns:
-                    if 'de' in col.lower() or 'deutsch' in col.lower() or 'ger' in col.lower():
-                        de_col = col
-                        break
-                
-                if en_col is None or de_col is None:
-                    print(f"[WARNING] {csv_file}: Could not find en/de columns. Columns: {df.columns.tolist()}")
+                if language_col is None or term_id_col is None or term_name_col is None:
+                    for col in df.columns:
+                        if 'en' in col.lower() or 'english' in col.lower() or 'eng' in col.lower():
+                            legacy_en_col = col
+                            break
+                    
+                    for col in df.columns:
+                        if 'de' in col.lower() or 'deutsch' in col.lower() or 'ger' in col.lower():
+                            legacy_de_col = col
+                            break
+
+                    if legacy_en_col is None or legacy_de_col is None:
+                        print(
+                            f"[WARNING] {csv_file}: Could not find supported en/de columns. "
+                            f"Columns: {df.columns.tolist()}"
+                        )
+                        continue
+
+                loaded_term_pairs = 0
+
+                if language_col and term_id_col and term_name_col:
+                    df = df.copy()
+                    df[language_col] = df[language_col].astype(str).str.strip().str.lower()
+                    df[term_name_col] = df[term_name_col].astype(str).str.strip()
+                    df[term_id_col] = df[term_id_col].astype(str).str.strip()
+
+                    term_groups = []
+                    for term_id, group in df.groupby(term_id_col):
+                        if not term_id or term_id == "nan":
+                            continue
+
+                        en_terms = group[group[language_col] == "en"][term_name_col].dropna().astype(str)
+                        de_terms = group[group[language_col] == "de"][term_name_col].dropna().astype(str)
+
+                        if en_terms.empty or de_terms.empty:
+                            continue
+
+                        en_term = en_terms.iloc[0]
+                        de_term = de_terms.iloc[0]
+
+                        if len(en_term) > 2 and len(de_term) > 2:
+                            en_key = en_term.lower()
+                            if de_term not in self.glossary[en_key]["translations"]:
+                                self.glossary[en_key]["translations"].append(de_term)
+                                self.glossary[en_key]["original_en"] = en_term
+
+                            self.glossary[en_key]["frequency"] += 1
+                            self.glossary[en_key]["category"] = category
+                            self.frequency_map[en_key] += 1
+                            loaded_term_pairs += 1
+
+                    print(f"[OK] {csv_file}: Loaded {loaded_term_pairs} English/German term pairs")
                     continue
-                
+
+                # Legacy fallback for older column layouts
                 for idx, row in df.iterrows():
-                    en_term = str(row[en_col]).strip()
-                    de_term = str(row[de_col]).strip()
+                    en_term = str(row[legacy_en_col]).strip()
+                    de_term = str(row[legacy_de_col]).strip()
                     
                     if len(en_term) > 2 and len(de_term) > 2 and en_term != "nan" and de_term != "nan":
-                        # Normalize to lowercase for matching
                         en_key = en_term.lower()
                         
                         if de_term not in self.glossary[en_key]["translations"]:
@@ -79,7 +129,7 @@ class PharmaGlossaryBuilder:
                         self.glossary[en_key]["category"] = category
                         self.frequency_map[en_key] += 1
                 
-                print(f"[OK] {csv_file}: Loaded {len(df)} terms")
+                print(f"[OK] {csv_file}: Loaded {len(df)} legacy terms")
             
             except Exception as e:
                 print(f"[ERROR] Error loading {csv_file}: {e}")

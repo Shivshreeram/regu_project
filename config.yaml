@@ -1,6 +1,6 @@
 project:
   name: "Pharmaceutical Regulatory Document Translator"
-  language_pair: "en-de"
+  language_pair: "de-en"
   domain: "pharma_regulatory"
 
 data:
@@ -37,8 +37,8 @@ data:
 
 model:
   base_model: "facebook/nllb-200-distilled-600M"
-  src_lang: "eng_Latn"
-  tgt_lang: "deu_Latn"
+  src_lang: "deu_Latn"
+  tgt_lang: "eng_Latn"
 
 training:
   output_dir: "./medical_nllb_output_v2"
