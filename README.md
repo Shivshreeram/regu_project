@@ -1,293 +1,192 @@
-# Pharmaceutical Regulatory Document Translator (PRDTL)
+# Pharmaceutical Regulatory Document Translator
 
-## Project Overview
+This repository contains a config-driven English-to-German pharmaceutical translation workflow built around Meta's `facebook/nllb-200-distilled-600M` model with a LoRA adapter for regulatory document translation.
 
-A production-ready **English-to-German translator** specifically fine-tuned for pharmaceutical regulatory documents using **LoRA (Low-Rank Adaptation)** on Meta's **NLLB-200 model**. Trained on 249,136 pharmaceutical-specific translation pairs with GPU acceleration.
+The current codebase is organized around these scripts:
 
-**Key Features:**
-- 🚀 LoRA fine-tuning (rank 32, optimized for 6GB GPU)
-- 🏥 Pharma domain-specific (1,000+ terms glossary)
-- 📄 Document structure preservation (~docx files)
-- 📊 Quality metrics & reporting (BLEU, METEOR, ChrF, TER)
-- ⚡ Tokenization caching (20x speedup on reruns)
-- 💾 Efficient training (249K pairs, 5 epochs)
+- `build_glossary.py` builds the domain glossary from the provided CSV terminology sources.
+- `prepare_data.py` combines the EMEA bilingual corpus with glossary context/template pairs and writes the cleaned training dataset.
+- `train_improved.py` loads the base NLLB model, adds LoRA adapters, and trains with the settings in `config.yaml`.
+- `evaluate_model.py` loads the adapter from `medical_adapter_final` and writes evaluation metrics and sample translations to `outputs/`.
+- `process_document_improved.py` loads the same adapter, translates `.docx` content, preserves structure, and writes a translated document plus a JSON report.
+- `master_pipeline.py` is the orchestration entry point for the full workflow.
 
----
+## Current workflow
 
-## Quick Start
+The scripts in this repository are meant to be run in this order:
 
-### 1. Setup Environment (First Time Only)
+1. Build glossary
+2. Prepare clean training data
+3. Train or continue training the LoRA adapter
+4. Evaluate the model
+5. Translate a Word document
+
+## Environment setup
+
+On Windows, the expected workflow is:
 
 ```powershell
-# Clone repository
-git clone https://github.com/Shivshreeram/regu_project.git
-cd regu_project
-
-# Create virtual environment
 python -m venv venv
-
-# Activate environment
 .\venv\Scripts\Activate.ps1
 
-# Install dependencies
 pip install torch transformers peft datasets pandas pyyaml python-docx sacrebleu
-
-# Optional: Verify setup
-.\venv\Scripts\python.exe verify_implementation.py
 ```
 
-### 2. Translate a Document (Production Use)
+If the virtual environment is already active, the scripts can be launched directly with:
 
 ```powershell
-# Activate environment (if not already)
-.\venv\Scripts\Activate.ps1
-
-# Process any .docx file
-.\venv\Scripts\python.exe process_document_improved.py your_document.docx
+.\venv\Scripts\python.exe <script_name>.py
 ```
 
-**Outputs:**
-- `your_document_Translated_DE_v2.docx` - Translated document
-- `your_document_Translated_DE_v2.report.json` - Quality metrics
+## Quick start
 
-### 3. Full Pipeline (Training + Evaluation + Translation)
+### 1. Prepare the data
 
 ```powershell
-# One command, ~2.5-4 hours (first time includes training)
+.\venv\Scripts\python.exe master_pipeline.py --steps data-prep
+```
+
+This runs the glossary and data preparation steps via `build_glossary.py` and `prepare_data.py`.
+
+### 2. Train the adapter
+
+```powershell
+.\venv\Scripts\python.exe master_pipeline.py --steps train
+```
+
+This calls `train_improved.py` and writes training artifacts to `medical_nllb_output_v2/` and the final adapter to `medical_adapter_final/`.
+
+### 3. Evaluate the model
+
+```powershell
+.\venv\Scripts\python.exe master_pipeline.py --steps eval
+```
+
+This invokes `evaluate_model.py` and saves output to:
+
+- `outputs/evaluation_report.json`
+- `outputs/evaluation_samples.csv`
+
+### 4. Translate a document
+
+```powershell
+.\venv\Scripts\python.exe master_pipeline.py --steps process --document xarelto_first_3_pages.docx
+```
+
+Or run the processor directly:
+
+```powershell
+.\venv\Scripts\python.exe process_document_improved.py xarelto_first_3_pages.docx
+```
+
+The document processor writes:
+
+- `xarelto_first_3_pages_Translated_DE_v2.docx`
+- `xarelto_first_3_pages_Translated_DE_v2.report.json`
+
+## Full pipeline
+
+The full orchestration command is:
+
+```powershell
 .\venv\Scripts\python.exe master_pipeline.py --config config.yaml --steps all
+```
 
-# Or skip training (if model already exists, ~5 minutes)
+The current CLI supports these step selections:
+
+- `all`
+- `data-prep`
+- `train`
+- `eval`
+- `process`
+
+You can skip selected stages with:
+
+```powershell
 .\venv\Scripts\python.exe master_pipeline.py --skip train eval
 ```
 
----
+## Important current paths and artifacts
 
-## Project Structure
+The actual code expects these files and folders:
 
-```
-regu_project/
-├── config.yaml                          # Centralized configuration
-├── pharma_glossary.json                 # 1,000+ pharmaceutical terms
-│
-├── Python Scripts
-├── build_glossary.py                    # Extract terms from CSVs
-├── prepare_data.py                      # Prepare training data
-├── train_improved.py                    # Train LoRA adapter (GPU-optimized)
-├── evaluate_model.py                    # Evaluate metrics
-├── process_document_improved.py         # Translate documents
-├── master_pipeline.py                   # Automated orchestration
-│
-├── Data
-├── EMEA.de-en.de                        # German EMEA corpus
-├── EMEA.de-en.en                        # English EMEA corpus
-├── medical_training_final_cleaned.csv   # Training data (249,136 pairs)
-├── 100000073345_routes_of_admin.csv     # Pharma data sources
-├── 100000110633_units_of_mesu.csv
-├── 200000000004_pharma_dose_form.csv
-├── 200000000007_combined_terms.csv
-├── 200000000014_units_of_presen.csv
-│
-├── Models & Outputs
-├── medical_adapter_final/               # Fine-tuned LoRA adapter
-│   ├── adapter_config.json
-│   ├── adapter_model.safetensors        # Weights (10 MB)
-│   ├── tokenizer.json
-│   └── sentencepiece.bpe.model
-│
-├── medical_nllb_output_v2/              # Training checkpoints
-│   ├── checkpoint-16845/
-│   ├── checkpoint-33690/
-│   └── checkpoint-50535/
-│
-├── outputs/                             # Evaluation results
-│   ├── evaluation_report.json           # BLEU, METEOR, ChrF, TER
-│   └── evaluation_samples.csv           # 10 sample translations
-│
-└── tokenized_cache/                     # Auto-generated (ignored by git)
-    ├── train/
-    ├── val/
-    └── test/
-```
+- `config.yaml` — central repository configuration
+- `EMEA.de-en.en` and `EMEA.de-en.de` — bilingual source corpus
+- `100000073345_routes_of_admin.csv`
+- `100000110633_units_of_mesu.csv`
+- `200000000004_pharma_dose_form.csv`
+- `200000000007_combined_terms.csv`
+- `200000000014_units_of_presen.csv`
+- `pharma_glossary.json` — glossary output
+- `medical_training_final_cleaned.csv` — cleaned training dataset
+- `medical_adapter_final/` — LoRA adapter used at inference time
+- `medical_nllb_output_v2/` — training checkpoints and artifacts
+- `outputs/` — evaluation outputs
+- `tokenized_cache/` — cached tokenized datasets
 
----
+## Configuration summary
 
-## Architecture & Model Details
+The current repository uses `config.yaml` for almost all major settings, including:
 
-### Base Model
-- **Name:** facebook/nllb-200-distilled-600M
-- **Type:** Sequence-to-sequence transformer (multilingual)
-- **Size:** 600M parameters
-- **Languages:** 200+ supported
-- **Training data:** CCMatrix, Paracrawl, OPUS
+- `model.base_model`
+- `model.src_lang` and `model.tgt_lang`
+- `training.num_epochs`
+- `training.per_device_train_batch_size`
+- `training.learning_rate`
+- `training.lora.r` and `training.lora.target_modules`
+- `validation.bleu_threshold`
+- `document_processing.*`
 
-### Fine-Tuning Strategy
-- **Adapter Type:** LoRA (Low-Rank Adaptation)
-- **LoRA Rank:** 32 (reduced from 64 for 6GB GPU)
-- **LoRA Alpha:** 16
-- **Modules:** 4 (q_proj, v_proj, k_proj, out_proj)
-- **Dropout:** 0.1
-- **Target Modules:** ["q_proj", "v_proj", "k_proj", "out_proj"]
+The current LoRA configuration in `config.yaml` is centered on the `q_proj`, `v_proj`, `k_proj`, and `out_proj` modules, with `r: 32` and `lora_alpha: 16`.
 
-### Training Configuration
-```yaml
-Model: nllb-200-distilled-600M + LoRA adapter
-Training Samples: 249,136 (EMEA corpus + pharma glossary)
-Validation Split: 1,000 samples
-Test Split: 1,000 samples
-Epochs: 5
-Batch Size: 8 (per device)
-Learning Rate: 5e-5 (with linear warmup)
-Optimizer: 8-bit AdamW (paged_adamw_8bit)
-Precision: bfloat16 (mixed precision)
-GPU: NVIDIA RTX 4060 Laptop (6GB VRAM)
-Training Time: ~5 hours
-```
+## What each script does
 
-### Optimizations
-- **Gradient Checkpointing:** Enabled (reduces memory)
-- **8-bit Optimizer:** paged_adamw_8bit (memory efficient)
-- **Mixed Precision:** bfloat16 (faster computation)
-- **Tokenization Caching:** 20-30 second → instant reloads
-- **Early Stopping:** Monitors eval_loss, saves best model
+### `build_glossary.py`
+Builds a regulatory glossary from the provided CSV files and writes `pharma_glossary.json`.
 
----
+### `prepare_data.py`
+Loads the EMEA corpus, mines glossary context pairs, generates fallback glossary templates, cleans the dataset, and writes `medical_training_final_cleaned.csv`.
 
-## Performance Metrics
+### `train_improved.py`
+Trains the NLLB model with a PEFT LoRA adapter using the parameters in `config.yaml`. It also caches tokenized data under `tokenized_cache/` to speed up reruns.
 
-### Evaluation Results (100 test samples)
+### `evaluate_model.py`
+Loads the adapter from `medical_adapter_final` and computes BLEU, METEOR, ChrF, and TER scores.
 
-| Metric | Value | Target | Status |
-|--------|-------|--------|--------|
-| **BLEU Score** | 25-28 | > 20 | ✅ |
-| **METEOR** | 40-45 | > 35 | ✅ |
-| **ChrF** | 65-70 | > 60 | ✅ |
-| **TER** | 50-55 | < 60 | ✅ |
-| **Glossary Match** | 85-95% | > 85% | ✅ |
-| **Term Consistency** | 95%+ | > 90% | ✅ |
+### `process_document_improved.py`
+Translates `.docx` files while preserving Word structure and writing a JSON report for the processed output.
 
-### Quality Benchmarks
+### `master_pipeline.py`
+Provides the single CLI entry point for orchestrating the full process from glossary creation through document translation.
 
-**Medical Terminology Accuracy:**
-- Pharmaceutical terms: 95%+ match rate
-- Drug interactions: 92% accuracy
-- Dosage units: 98% accuracy
-- Regulatory terms: 88% accuracy
+## Notes on current behavior
 
-**Document Processing:**
-- Structure preservation: 100%
-- Formatting retention: 99%
-- Translation success rate: 99.5%
-- Processing speed: ~2 min per 3-page document
+- The code uses a Windows-friendly PowerShell activation pattern with `.\venv\Scripts\Activate.ps1`.
+- The expected adapter path is `medical_adapter_final`, not a separate `medical_adapter_final_v2` directory.
+- The document processor produces a `*_Translated_DE_v2.report.json` file, not a separate `*_report.json` naming convention.
+- The evaluation and translation scripts are model-path driven by `config.yaml`, so the repository should generally be run from the project root.
 
----
+## Troubleshooting
 
-## Usage Examples
+### Missing CUDA / training hardware issues
 
-### Example 1: Translate a Regulatory Document
+The training script expects a CUDA-enabled GPU. If CUDA is unavailable, training will fail before running the LoRA fine-tuning loop.
 
-```powershell
-# Process a single document
-.\venv\Scripts\python.exe process_document_improved.py "regulatory_document.docx"
+### Missing data files
 
-# Output files:
-# - regulatory_document_Translated_DE_v2.docx
-# - regulatory_document_Translated_DE_v2.report.json
-```
+If `prepare_data.py` or the pipeline reports missing files, confirm that the bilingual corpus and all CSV terminology files are present in the project root.
 
-### Example 2: Batch Process Multiple Documents
+### Missing adapter or outputs
 
-```powershell
-# Create processAll.ps1
-$documents = Get-ChildItem *.docx
+If evaluation or translation fails because the adapter is missing, rerun the training step first, or confirm that `medical_adapter_final/` exists.
 
-foreach ($doc in $documents) {
-    Write-Host "Processing $($doc.Name)..."
-    .\venv\Scripts\python.exe process_document_improved.py $doc.Name
-    Write-Host "Complete!"
-}
-```
+### Reusing cached tokenization
 
-### Example 3: Evaluate Model on Custom Data
+The first training run may build the `tokenized_cache/` folders. Subsequent runs can reuse that cache to reduce setup time.
 
-```powershell
-# Edit prepare_data.py with your data source
-# Then run evaluation
-.\venv\Scripts\python.exe evaluate_model.py
+## Summary
 
-# Check outputs/evaluation_report.json for metrics
-```
-
-### Example 4: Retrain with New Data
-
-```powershell
-# Add new training data to medical_training_final_cleaned.csv
-# Update config.yaml if needed
-# Run training (uses tokenization cache)
-.\venv\Scripts\python.exe train_improved.py
-
-# Evaluate new model
-.\venv\Scripts\python.exe evaluate_model.py
-
-# Process documents
-.\venv\Scripts\python.exe process_document_improved.py document.docx
-```
-
----
-
-## Configuration File (config.yaml)
-
-```yaml
-# Model Configuration
-model_name: "facebook/nllb-200-distilled-600M"
-adapter_name: "./medical_adapter_final"
-
-# LoRA Configuration
-lora:
-  r: 32                           # Rank (reduced for 6GB GPU)
-  lora_alpha: 16
-  lora_dropout: 0.1
-  bias: "r_only"
-  task_type: "SEQ_2_SEQ_LM"
-  target_modules:
-    - "q_proj"
-    - "v_proj"
-    - "k_proj"
-    - "out_proj"
-
-# Training Configuration
-training:
-  num_train_epochs: 5
-  per_device_train_batch_size: 8
-  per_device_eval_batch_size: 8
-  learning_rate: 5.0e-5           # Auto-converted to float
-  weight_decay: 0.01              # Auto-converted to float
-  warmup_ratio: 0.1
-  num_warmup_steps: ~1000 (auto-calculated)
-  max_grad_norm: 1.0
-  gradient_accumulation_steps: 1
-  gradient_checkpointing: true
-
-# Optimizer Configuration
-optimizer: "paged_adamw_8bit"     # 8-bit AdamW (memory efficient)
-
-# Precision & Device
-torch_dtype: "bfloat16"           # Mixed precision training
-device_map: "auto"                # Automatic GPU/CPU detection
-
-# Evaluation & Logging
-eval_strategy: "epoch"
-save_strategy: "epoch"
-load_best_model_at_end: true
-metric_for_best_model: "eval_loss"
-greater_is_better: false
-logging_steps: 100
-logging_dir: "./logs"
-
-# Paths
-train_data_path: "medical_training_final_cleaned.csv"
-cache_dir: "./tokenized_cache"
-output_dir: "./medical_nllb_output_v2"
-```
+This repository is a domain-adapted NLLB + LoRA translation pipeline for pharmaceutical regulatory documents. The current README now reflects the actual command-line entry points, output folders, and script responsibilities used by the code in this workspace.
 
 ---
 
